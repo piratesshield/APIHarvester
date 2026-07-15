@@ -1,0 +1,3 @@
+# Python dependencies for optional accelerators used by apiharvester
+arjun>=2.2.0
+wafw00f>=2.2.0
