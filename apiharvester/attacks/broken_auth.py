@@ -32,6 +32,45 @@ def _test_no_auth(client, ep, ctx):
     return False
 
 
+def _test_method_bypass(client, ep, ctx):
+    """Test if OPTIONS/HEAD bypass authentication (common on protected paths).
+    Some servers misconfigure auth filters to only apply to GET/POST, allowing
+    OPTIONS/HEAD to enumerate methods or retrieve metadata without auth."""
+    found = 0
+    for method in ("OPTIONS", "HEAD"):
+        resp = client.request(method, ep.url)
+        if 200 <= resp.status < 300:
+            if method == "OPTIONS" and "allow" in resp.headers:
+                ctx.add_finding(Finding(
+                    title=f"Sensitive endpoint ({ep.path}) accessible via OPTIONS without auth",
+                    severity="high",
+                    category="API2:2023 Broken Authentication",
+                    method=method,
+                    path=ep.path,
+                    host=ep.host,
+                    status=resp.status,
+                    evidence=f"OPTIONS {ep.path} returned {resp.status}; "
+                             f"Allow: {resp.headers.get('allow', '')}",
+                    remediation="Enforce authentication on all HTTP methods, "
+                               "including OPTIONS.",
+                    attack_phase="broken_auth"))
+                found += 1
+            elif method == "HEAD":
+                ctx.add_finding(Finding(
+                    title=f"Sensitive endpoint ({ep.path}) accessible via HEAD without auth",
+                    severity="high",
+                    category="API2:2023 Broken Authentication",
+                    method=method,
+                    path=ep.path,
+                    host=ep.host,
+                    status=resp.status,
+                    evidence=f"HEAD {ep.path} returned {resp.status} (method-based auth bypass)",
+                    remediation="Enforce authentication uniformly across all HTTP methods.",
+                    attack_phase="broken_auth"))
+                found += 1
+    return found
+
+
 def _test_jwt_attacks(client, token, ep, ctx):
     """Run JWT-specific attacks against a token."""
     found = 0
@@ -141,11 +180,19 @@ def run_broken_auth(ctx: ScanContext):
     client = HTTPClient(timeout=ctx.timeout)
     found = 0
 
-    # Test no-auth access
+    # Test no-auth access on GET
     if ctx.auth:
         for ep in endpoints[:50]:
             if _test_no_auth(client, ep, ctx):
                 found += 1
+
+    # Test method-based bypass (OPTIONS/HEAD without auth on sensitive paths)
+    from ..config import SENSITIVE_PATH_RE, BFLA_PATH_RE
+    sensitive_eps = [e for e in endpoints
+                     if SENSITIVE_PATH_RE.search(e.path) or
+                        BFLA_PATH_RE.search(e.path)]
+    for ep in sensitive_eps[:50]:
+        found += _test_method_bypass(client, ep, ctx)
 
     # JWT attacks on provided tokens
     tokens = []

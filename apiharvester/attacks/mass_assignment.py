@@ -5,23 +5,7 @@ import sys
 from ..config import MASS_ASSIGNMENT_FIELDS
 from ..http_client import HTTPClient
 from ..models import Finding, ScanContext
-
-
-def _log(msg):
-    print(f"[*] Attack 3 (mass assign): {msg}", file=sys.stderr)
-
-
-def _extract_fields(body):
-    """Extract field names from a JSON response body."""
-    try:
-        data = json.loads(body)
-        if isinstance(data, dict):
-            return set(data.keys())
-        if isinstance(data, list) and data and isinstance(data[0], dict):
-            return set(data[0].keys())
-    except (json.JSONDecodeError, TypeError):
-        pass
-    return set()
+from ..utils.json_shape import extract_fields as _extract_fields
 
 
 def _has_sensitive_fields(fields):

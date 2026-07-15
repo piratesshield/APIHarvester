@@ -175,7 +175,9 @@ def discover_params(ctx: ScanContext):
             ep, found = future.result()
             if found:
                 for p in found:
-                    ep.params.setdefault(p, "")
+                    # "1" is the literal probe value _build_query used to
+                    # confirm this param, so record it as the observed value.
+                    ep.params.setdefault(p, "1")
                 total_params += len(found)
                 _log(f"  {ep.path}: {found}")
 
@@ -201,8 +203,10 @@ def _extract_params_from_specs(ctx):
                         name = param.get("name", "")
                         if not name:
                             continue
+                        value = str(param.get("example",
+                                               param.get("default", "1")))
                         for ep in ctx.endpoints_for_host(domain):
                             if path.rstrip("/") in ep.path:
-                                ep.params.setdefault(name, "")
+                                ep.params.setdefault(name, value)
                                 count += 1
     return count

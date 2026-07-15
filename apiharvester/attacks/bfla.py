@@ -14,7 +14,13 @@ def _log(msg):
 
 def run_bfla(ctx: ScanContext):
     """Test for broken function-level authorization."""
-    sensitive = [e for e in ctx.endpoints if e.is_sensitive]
+    # is_sensitive (SENSITIVE_PATH_RE) covers /admin, /internal, /debug,
+    # /config, etc. but not privileged-function-specific paths like
+    # /roles, /permissions, /impersonate, /sudo, /elevate, /grant, /revoke,
+    # or /users/{id}/delete — those only match BFLA_PATH_RE, so both must
+    # be checked or this whole class of endpoint is silently skipped.
+    sensitive = [e for e in ctx.endpoints
+                 if e.is_sensitive or BFLA_PATH_RE.search(e.path)]
     all_eps = ctx.api_endpoints()
     _log(f"Testing {len(sensitive)} sensitive + {len(all_eps)} total endpoints")
 

@@ -18,6 +18,7 @@ from .recon.endpoint_discovery import discover_endpoints
 from .recon.param_discovery import discover_params
 from .recon.crawler import crawl_and_extract
 from .recon.method_prober import probe_methods
+from .recon.shape_discovery import discover_object_shapes
 
 # Attack imports
 from .attacks.bola import run_bola
@@ -31,6 +32,8 @@ from .attacks.misconfiguration import run_misconfiguration
 from .attacks.inventory import run_inventory
 from .attacks.sspp import run_sspp
 from .attacks.injection import run_injection
+from .attacks.reliability import run_reliability
+from .attacks.secrets import run_secrets
 
 # Output imports
 from .output.file_writer import write_recon_files
@@ -38,11 +41,10 @@ from .output.reporter import report_console, report_jsonl, report_html
 
 
 BANNER = f"""
-  ___  ____  ___ ____            ____
- / _ \\|  _ \\|_ _/ ___|  ___  __|___ \\
-| |_| | |_) || |\\___ \\ / _ \\/ __|__) |
-|  _  |  __/ | | ___) |  __/ (__ / __/
-|_| |_|_|   |___|____/ \\___|\\___||_____|  v{VERSION}
+   _   ___ ___ _  _   _   _____   _____ ___ _____ ___ ___
+  /_\\\\ | _ \\\\_ _| || | /_\\\\ | _ \\\\ \\\\ / / __/ __|_   _| __| _ \\\\
+ / _ \\\\|  _/| || __ |/ _ \\\\|   /\\\\ V /| _|\\\\__ \\\\ | | | _||   /
+/_/ \\\\_\\\\_| |___|_||_/_/ \\\\_\\\\_|_\\\\ \\\\_/ |___|___/ |_| |___|_|_\\\\  v{VERSION}
      API Security Scanner — OWASP Top 10
 """
 
@@ -58,6 +60,8 @@ ALL_ATTACKS = {
     "inventory": ("API9:2023 Inventory", run_inventory),
     "sspp": ("API10:2023 SSPP", run_sspp),
     "injection": ("Bonus: Injection", run_injection),
+    "reliability": ("Bonus: Reliability (RESTler-style crash/500 fuzz)", run_reliability),
+    "secrets": ("Bonus: Secrets (credential/API key pattern matching)", run_secrets),
 }
 
 
@@ -172,6 +176,7 @@ def main():
         _phase("Phase 8:  Parameter Discovery", discover_params, ctx)
         _phase("Phase 9:  Crawling + JS Extraction", crawl_and_extract, ctx)
         _phase("Phase 10: HTTP Method Probing", probe_methods, ctx)
+        _phase("Phase 11: Object Shape Discovery", discover_object_shapes, ctx)
 
         # Write recon files
         _phase("Writing recon files", write_recon_files, ctx)
@@ -204,6 +209,10 @@ def main():
 
         for key, (label, fn) in selected.items():
             _phase(f"Attack: {label}", fn, ctx)
+
+        # Re-write recon files: attacks (e.g. mass_assignment) populate
+        # fields like object_fields that recon-phase files depend on.
+        _phase("Updating recon files", write_recon_files, ctx)
     else:
         print("\n[!] No endpoints or hosts found — skipping attacks.",
               file=sys.stderr)

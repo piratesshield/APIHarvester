@@ -4,10 +4,9 @@ import os
 import socket
 import sys
 import concurrent.futures as futures
-import urllib.request
-import urllib.error
 
 from ..config import SUBDOMAIN_WORDS, SUBDOMAIN_WORDLIST_FILE
+from ..http_client import HTTPClient
 from ..models import Host, ScanContext
 from ..utils.tool_runner import run_tool_lines, tool_available
 
@@ -16,14 +15,21 @@ def _log(msg):
     print(f"[*] Phase 1 (subdomains): {msg}", file=sys.stderr)
 
 
-def _passive_crtsh(domain):
+def _passive_crtsh(domain, timeout=15):
     """Query crt.sh certificate transparency logs."""
     _log("Passive: crt.sh...")
     url = f"https://crt.sh/?q=%25.{domain}&output=json"
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "apiharvester"})
-        with urllib.request.urlopen(req, timeout=15) as r:
-            data = json.loads(r.read().decode("utf-8", "replace"))
+        # Reuse the shared HTTPClient (permissive TLS context) instead of a
+        # raw urlopen — this is a passive OSINT lookup, not the pentest
+        # target, so it should tolerate the same broken/intercepted TLS
+        # chains (e.g. corporate MITM proxies) the rest of the tool does.
+        client = HTTPClient(timeout=timeout)
+        resp = client.request("GET", url)
+        if resp.status != 200 or not resp.body:
+            _log(f"  crt.sh failed: HTTP {resp.status} {resp.error}".rstrip())
+            return set()
+        data = json.loads(resp.body)
         subs = set()
         for entry in data:
             for name in entry.get("name_value", "").split("\n"):
@@ -104,7 +110,7 @@ def discover_subdomains(ctx: ScanContext):
 
     all_subs = {domain}
 
-    all_subs |= _passive_crtsh(domain)
+    all_subs |= _passive_crtsh(domain, timeout=ctx.timeout)
     all_subs |= _passive_subfinder(domain)
     all_subs |= _passive_haktrails(domain)
 
