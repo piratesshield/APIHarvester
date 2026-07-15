@@ -204,32 +204,6 @@ These payloads are sourced from SecLists (https://github.com/danielmiessler/SecL
 
 ---
 
-## Comparison: apiharvester vs. apisec.py vs. RESTler
-
-| Dimension | apiharvester | apisec.py | RESTler |
-|-----------|---------------|-----------|---------|
-| **Approach** | Black-box: discover subdomains → endpoints → params → OWASP attacks | Black-box scanner + recon + attacks | Requires OpenAPI spec; stateful fuzzing |
-| **Spec required?** | No (discovers from scratch) | No | Yes (hard requirement) |
-| **OWASP API Top 10** | All 10 + 3 bonus attacks | Subset (auth, BOLA/BFLA, rate limit, misc) | None (finds crashes/500s instead) |
-| **BOLA/IDOR detection** | ✅ ID fuzzing (0, 1, 2, 99, "admin", UUID variants) + differential auth | ✅ Similar ID fuzzing | ❌ No OWASP category testing |
-| **Secrets detection** | ✅ 8 patterns (AWS, Google API, Slack, Stripe, GitHub, private keys, JWTs, generic) | ✅ Same patterns | ❌ No |
-| **Method-based auth bypass** | ✅ Tests OPTIONS/HEAD on sensitive paths | ✅ Same | ❌ No |
-| **Active CORS testing** | ✅ Sends untrusted Origin, checks reflection | ✅ Same | ❌ No |
-| **Rate limiting** | ✅ 20 rapid requests, checks 429 | ✅ Same | ❌ No |
-| **Crash/500s detection** | ✅ Boundary fuzzing (RESTler-style) | Partial | ✅ Core feature |
-| **Stateful sequences** | ❌ Each endpoint tested independently | ❌ No | ✅ Core feature |
-| **Dependencies** | stdlib-only Python | stdlib-only Python | .NET + fuzzing engine |
-| **Recon depth** | ✅ Subdomains, DNS, WAF, crawling, JavaScript extraction | Limited | ❌ No recon |
-| **Differential auth testing** | ✅ `--auth` + `--auth2` for privilege escalation | Requires manual setup | ❌ No |
-
-**When to use each:**
-- **apiharvester**: Black-box pentest/bug bounty against undocumented APIs. Covers the full pipeline from domain to OWASP Top 10 findings.
-- **apisec.py**: Similar to apiharvester; may have additional checks not ported to apiharvester yet.
-- **RESTler**: Deep stateful fuzzing when you have a published OpenAPI spec; finds subtle state-machine bugs and server reliability issues.
-- **For best coverage**: Run apiharvester first (zero-spec black-box), then feed the discovered OpenAPI spec to RESTler (stateful fuzzing) for crash detection.
-
----
-
 ## Improvements Over Prior Versions
 
 ### BOLA/IDOR Detection
