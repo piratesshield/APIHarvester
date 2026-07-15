@@ -1,6 +1,4 @@
-<img width="1983" height="793" alt="ChatGPT Image Jul 15, 2026, 10_14_08 AM" src="https://github.com/user-attachments/assets/fb82e69a-04d5-4507-b097-b2fa4bbcdeae" />
-
-# ApiHarvester
+# apiharvester
 
 A full-pipeline black-box API security scanner written in Python. It enumerates endpoints, identifies parameters, probes HTTP methods, tests authentication/authorization logic, and runs standard OWASP API Top 10 attack simulations (BOLA, Broken Auth, BFLA, Mass Assignment, Rate Limiting, SSRF, Security Misconfiguration, etc.), plus a RESTler-style reliability fuzzer that hunts crashes/500s independent of any OWASP category.
 
