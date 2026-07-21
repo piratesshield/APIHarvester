@@ -5,6 +5,7 @@ import time
 from ..config import ERROR_SIGNATURES, INJECTION_MARKER
 from ..http_client import HTTPClient
 from ..models import Finding, ScanContext
+from ..utils.validation import confirm_timing
 
 
 def _log(msg):
@@ -86,31 +87,27 @@ def run_injection(ctx: ScanContext):
                     found += 1
                     break
 
-            # SQLi (time-based blind)
+            # SQLi (time-based blind) — multi-sample median confirmation to
+            # defeat network jitter (single-sample timing is a classic FP).
             sleep_url = f"{url}?{param}={original_value}' OR SLEEP(3)--"
-            t0 = time.time()
-            resp = client.request("GET", sleep_url, headers=headers)
-            elapsed = time.time() - t0
-            if elapsed >= 2.8 and resp.status != 0:
-                # Verify with non-sleep request
-                normal_url = f"{url}?{param}={original_value}"
-                t1 = time.time()
-                resp2 = client.request("GET", normal_url, headers=headers)
-                normal_elapsed = time.time() - t1
-                if elapsed > normal_elapsed * 2.5:
-                    ctx.add_finding(Finding(
-                        title=f"SQL injection (time-based blind): {param}",
-                        severity="critical",
-                        category="Injection",
-                        method="GET",
-                        path=ep.path,
-                        host=ep.host,
-                        status=resp.status,
-                        evidence=f"SLEEP(3) caused {elapsed:.1f}s delay "
-                                 f"vs {normal_elapsed:.1f}s normal",
-                        remediation="Use parameterized queries.",
-                        attack_phase="injection"))
-                    found += 1
+            normal_url = f"{url}?{param}={original_value}"
+            confirmed, slow, fast = confirm_timing(
+                client, "GET", sleep_url, normal_url, headers,
+                floor_s=2.8, samples=3, ratio=2.5)
+            if confirmed:
+                ctx.add_finding(Finding(
+                    title=f"SQL injection (time-based blind): {param}",
+                    severity="critical",
+                    category="Injection",
+                    method="GET",
+                    path=ep.path,
+                    host=ep.host,
+                    status=200,
+                    evidence=f"SLEEP(3) median {slow:.1f}s vs control median "
+                             f"{fast:.1f}s across 3 samples (ratio ≥2.5).",
+                    remediation="Use parameterized queries.",
+                    attack_phase="injection"))
+                found += 1
 
             # === XSS (reflected) ===
             for label, payload in XSS_PAYLOADS:
@@ -142,30 +139,26 @@ def run_injection(ctx: ScanContext):
                             found += 1
                             break
 
-            # === Command injection (time-based) ===
+            # === Command injection (time-based, multi-sample) ===
             sleep_url = f"{url}?{param}={original_value};sleep 5"
-            t0 = time.time()
-            resp = client.request("GET", sleep_url, headers=headers)
-            elapsed = time.time() - t0
-            if elapsed >= 4.5 and resp.status != 0:
-                normal_url = f"{url}?{param}={original_value}"
-                t1 = time.time()
-                resp2 = client.request("GET", normal_url, headers=headers)
-                normal_elapsed = time.time() - t1
-                if elapsed > normal_elapsed * 3:
-                    ctx.add_finding(Finding(
-                        title=f"Command injection (time-based): {param}",
-                        severity="critical",
-                        category="Injection",
-                        method="GET",
-                        path=ep.path,
-                        host=ep.host,
-                        status=resp.status,
-                        evidence=f"sleep 5 caused {elapsed:.1f}s delay "
-                                 f"vs {normal_elapsed:.1f}s normal",
-                        remediation="Never pass user input to shell commands. "
-                                    "Use safe APIs that don't invoke a shell.",
-                        attack_phase="injection"))
-                    found += 1
+            normal_url = f"{url}?{param}={original_value}"
+            confirmed, slow, fast = confirm_timing(
+                client, "GET", sleep_url, normal_url, headers,
+                floor_s=4.5, samples=3, ratio=3.0)
+            if confirmed:
+                ctx.add_finding(Finding(
+                    title=f"Command injection (time-based): {param}",
+                    severity="critical",
+                    category="Injection",
+                    method="GET",
+                    path=ep.path,
+                    host=ep.host,
+                    status=200,
+                    evidence=f"';sleep 5' median {slow:.1f}s vs control median "
+                             f"{fast:.1f}s across 3 samples (ratio ≥3.0).",
+                    remediation="Never pass user input to shell commands. "
+                                "Use safe APIs that don't invoke a shell.",
+                    attack_phase="injection"))
+                found += 1
 
     _log(f"Injection findings: {found}")

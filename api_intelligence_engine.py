@@ -152,6 +152,7 @@ class Finding:
     remediation: str = ""
     endpoint: str = ""
     tools: List[str] = field(default_factory=list)
+    confidence: str = "single-tool"
 
     def __post_init__(self):
         if not self.endpoint:
@@ -182,6 +183,7 @@ class Finding:
             "severity": self.severity,
             "tool": self.tool,
             "tools": self.tools,
+            "confidence": self.confidence,
             "evidence": self.evidence[:500],
             "status_code": self.status_code,
             "remediation": self.remediation,
@@ -296,6 +298,15 @@ class EndpointFilter:
 
             # Only http/https
             if parsed.scheme not in ("http", "https"):
+                continue
+
+            # Drop S3 / cloud storage hosts
+            netloc_lower = parsed.netloc.lower()
+            if any(cloud in netloc_lower for cloud in [
+                "s3.amazonaws.com", "amazonaws.com", "googleapis.com", 
+                "clouddn.com", "azureedge.net", "azurewebsites.net", 
+                "s3.cn-", "s3-r-w", "blob.core.windows.net", "storage.googleapis.com"
+            ]) or "s3" in netloc_lower or "bucket" in netloc_lower:
                 continue
 
             # Must look like an API or interesting endpoint
@@ -733,21 +744,116 @@ class VulnerabilityClassifier:
 
 
 # ---------------------------------------------------------------------------
-# Phase 7 — AutoSwagger adapter (feed discovered endpoints)
+# Phase 7 — Spec-Based Scanners (Stage B)
 # ---------------------------------------------------------------------------
 
-class AutoSwaggerAdapter:
-    """
-    Generates an input file listing discovered endpoint URLs so AutoSwagger
-    can test them directly instead of relying on spec discovery.
-    """
+def generate_synthetic_spec(endpoints: List[Endpoint], host: str) -> dict:
+    """Generates a minimal valid OpenAPI 3.0.0 spec for a given host's endpoints."""
+    spec = {
+        "openapi": "3.0.0",
+        "info": {
+            "title": f"Synthetic API Spec for {host}",
+            "version": "1.0.0",
+            "description": "Auto-synthesized spec from discovered endpoints"
+        },
+        "paths": {}
+    }
+    
+    host_endpoints = [ep for ep in endpoints if ep.host == host]
+    
+    for ep in host_endpoints:
+        path = ep.path
+        parts = []
+        for seg in path.split("/"):
+            if seg and ID_SEGMENT_RE.match(seg):
+                parts.append("{id}")
+            else:
+                parts.append(seg)
+        templated_path = "/".join(parts)
+        if not templated_path.startswith("/"):
+            templated_path = "/" + templated_path
+            
+        if templated_path not in spec["paths"]:
+            spec["paths"][templated_path] = {}
+            
+        method = ep.method.lower() if hasattr(ep, "method") else "get"
+        if not method:
+            method = "get"
+            
+        if method not in spec["paths"][templated_path]:
+            parameters = []
+            if "{id}" in templated_path:
+                parameters.append({
+                    "name": "id",
+                    "in": "path",
+                    "required": True,
+                    "schema": {
+                        "type": "string"
+                    }
+                })
+            spec["paths"][templated_path][method] = {
+                "summary": f"Discovered endpoint {method.upper()} {templated_path}",
+                "responses": {
+                    "200": {
+                        "description": "Successful operation"
+                    }
+                }
+            }
+            if parameters:
+                spec["paths"][templated_path][method]["parameters"] = parameters
+                
+    return spec
 
-    def run(self, endpoints: List[Endpoint], out_dir: Path,
+
+def discover_spec(host: str, timeout: int = 5) -> Optional[dict]:
+    """Probes standard paths on an API host to discover a published Swagger/OpenAPI spec."""
+    spec_paths = [
+        "swagger.json", "swagger/v1/swagger.json", "openapi.json", "openapi.yaml",
+        "v2/api-docs", "v3/api-docs", "api-docs", "api/swagger.json",
+        "swagger-ui.html", "api/openapi.json"
+    ]
+    
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    
+    for path in spec_paths:
+        for scheme in ("https", "http"):
+            url = f"{scheme}://{host}/{path}"
+            req = urllib.request.Request(url)
+            req.add_header("User-Agent", "Mozilla/5.0 (ARISE-Scanner/2.1)")
+            try:
+                with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+                    if resp.status == 200:
+                        body = resp.read().decode(errors="ignore")
+                        if '"swagger"' in body or '"openapi"' in body or 'swagger:' in body or 'openapi:' in body:
+                            if 'swagger:' in body or 'openapi:' in body:
+                                try:
+                                    import yaml
+                                    data = yaml.safe_load(body)
+                                    if isinstance(data, dict) and ("swagger" in data or "openapi" in data):
+                                        log.info("[spec-discovery] Discovered YAML spec at %s", url)
+                                        return data
+                                except Exception:
+                                    pass
+                            else:
+                                try:
+                                    data = json.loads(body)
+                                    if isinstance(data, dict) and ("swagger" in data or "openapi" in data):
+                                        log.info("[spec-discovery] Discovered JSON spec at %s", url)
+                                        return data
+                                except Exception:
+                                    pass
+            except Exception:
+                continue
+    return None
+
+
+class AutoSwaggerAdapter:
+    """Calls autoswagger with the local spec file if available or fallback url."""
+
+    def run(self, host: str, spec_path: Optional[Path], out_dir: Path,
             extra_args: List[str] = None) -> List[Finding]:
-        """
-        Calls autoswagger with the discovered endpoint list.
-        Returns parsed findings. Safe if autoswagger is not installed.
-        """
         try:
             result = subprocess.run(
                 ["which", "autoswagger"], capture_output=True, timeout=3
@@ -758,53 +864,39 @@ class AutoSwaggerAdapter:
         except Exception:
             return []
 
-        # Write endpoint list
-        ep_file = out_dir / "intel_endpoints.txt"
-        unique_urls = list({ep.url for ep in endpoints})
-        ep_file.write_text("\n".join(unique_urls) + "\n")
-
         findings: List[Finding] = []
         out_dir.mkdir(parents=True, exist_ok=True)
 
-        # Run autoswagger on each unique host with -all -risk -json
-        hosts_done: Set[str] = set()
-        for ep in endpoints:
-            if ep.host in hosts_done:
-                continue
-            hosts_done.add(ep.host)
+        base_url = f"https://{host}"
+        out_json = out_dir / f"{hashlib.md5(host.encode()).hexdigest()}.json"
+        raw_out = out_dir / f"{out_json.stem}.raw"
 
-            base_url = f"https://{ep.host}"
-            out_json = out_dir / f"{hashlib.md5(ep.host.encode()).hexdigest()}.json"
-            raw_out = out_dir / f"{out_json.stem}.raw"
+        cmd = ["autoswagger", base_url, "-risk", "-all", "-json"]
+        if spec_path:
+            cmd.extend(["-s", str(spec_path)])
+        if extra_args:
+            cmd.extend(extra_args)
 
-            cmd = ["autoswagger", base_url, "-risk", "-all", "-json"]
-            if extra_args:
-                cmd.extend(extra_args)
+        try:
+            with open(raw_out, "w") as fout, open(str(out_json) + ".log", "w") as ferr:
+                subprocess.run(cmd, stdout=fout, stderr=ferr, timeout=120)
 
-            try:
-                with open(raw_out, "w") as fout, open(str(out_json) + ".log", "w") as ferr:
-                    subprocess.run(cmd, stdout=fout, stderr=ferr, timeout=120)
+            if raw_out.exists():
+                raw = raw_out.read_text(errors="ignore")
+                json_text = ""
+                for i, line in enumerate(raw.splitlines()):
+                    if line.startswith("{") or line.startswith("["):
+                        json_text = "\n".join(raw.splitlines()[i:])
+                        break
+                if json_text:
+                    out_json.write_text(json_text)
+                raw_out.unlink(missing_ok=True)
 
-                # Strip banner, extract JSON
-                if raw_out.exists():
-                    raw = raw_out.read_text(errors="ignore")
-                    json_text = ""
-                    for i, line in enumerate(raw.splitlines()):
-                        if line.startswith("{") or line.startswith("["):
-                            json_text = "\n".join(raw.splitlines()[i:])
-                            break
-                    if json_text:
-                        out_json.write_text(json_text)
-                    raw_out.unlink(missing_ok=True)
+        except Exception as e:
+            log.warning("autoswagger failed for %s: %s", host, e)
 
-            except Exception as e:
-                log.warning("autoswagger failed for %s: %s", ep.host, e)
-
-        # Parse all output JSON files
-        for jf in out_dir.glob("*.json"):
-            findings.extend(self._parse_autoswagger_json(jf))
-
-        log.info("AutoSwagger adapter: %d findings", len(findings))
+        if out_json.exists():
+            findings.extend(self._parse_autoswagger_json(out_json))
         return findings
 
     def _parse_autoswagger_json(self, jf: Path) -> List[Finding]:
@@ -859,10 +951,157 @@ class AutoSwaggerAdapter:
         return "api_exposure", "exposure", "low"
 
 
+class RESTlerAdapter:
+    """Runs RESTler compilation and fuzz testing against API specification."""
+
+    def run(self, spec_path: Path, host: str, out_dir: Path) -> List[Finding]:
+        findings: List[Finding] = []
+        restler_bin = "/Users/apple/.local/bin/restler"
+        if not os.path.isfile(restler_bin):
+            try:
+                res = subprocess.run(["which", "restler"], capture_output=True, text=True)
+                if res.returncode == 0:
+                    restler_bin = res.stdout.strip()
+                else:
+                    return []
+            except Exception:
+                return []
+
+        compile_dir = out_dir / "compile"
+        test_dir = out_dir / "test"
+        compile_dir.mkdir(parents=True, exist_ok=True)
+        test_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1. Compile spec
+        log.info("[restler] Compiling API spec for %s...", host)
+        cmd_compile = [restler_bin, "compile", "--api_spec", str(spec_path)]
+        try:
+            res = subprocess.run(cmd_compile, cwd=str(compile_dir), capture_output=True, text=True, timeout=120)
+            if res.returncode != 0:
+                log.warning("[restler] Compile failed: %s", res.stderr)
+        except Exception as e:
+            log.warning("[restler] Compile failed to run: %s", e)
+            return []
+
+        # Find compiled grammar
+        grammar_file = compile_dir / "Compile" / "grammar.py"
+        dict_file = compile_dir / "Compile" / "dict.json"
+        settings_file = compile_dir / "Compile" / "engine_settings.json"
+
+        if not grammar_file.exists():
+            found_grammars = list(compile_dir.glob("**/grammar.py"))
+            if found_grammars:
+                grammar_file = found_grammars[0]
+                dict_file = grammar_file.parent / "dict.json"
+                settings_file = grammar_file.parent / "engine_settings.json"
+            else:
+                log.warning("[restler] No grammar.py generated.")
+                return []
+
+        # 2. Run Test Fuzzing
+        log.info("[restler] Running fuzz testing for %s...", host)
+        cmd_test = [
+            restler_bin, "test",
+            "--grammar_file", str(grammar_file),
+            "--dictionary_file", str(dict_file),
+            "--settings", str(settings_file)
+        ]
+        try:
+            subprocess.run(cmd_test, cwd=str(test_dir), capture_output=True, text=True, timeout=180)
+        except Exception as e:
+            log.warning("[restler] Test run error: %s", e)
+
+        # 3. Parse findings
+        summaries = list(test_dir.glob("**/testing_summary.json"))
+        for s_file in summaries:
+            try:
+                summary_data = json.loads(s_file.read_text())
+                bug_buckets = summary_data.get("bug_buckets", {})
+                repro_bug_buckets = summary_data.get("reproducible_bug_buckets", {})
+                all_bugs = {**bug_buckets, **repro_bug_buckets}
+                
+                for bug_type, count in all_bugs.items():
+                    if count > 0:
+                        findings.append(Finding(
+                            method="GET",
+                            path="*",
+                            host=host,
+                            issue_class="reliability_fuzz_failure",
+                            category="robustness",
+                            severity="medium",
+                            tool="restler",
+                            evidence=f"RESTler fuzzer identified {count} occurrences of bug type '{bug_type}'",
+                            status_code=500,
+                            remediation="Ensure input validation is complete. Do not leak stack traces or crash the application server on malformed requests."
+                        ))
+            except Exception as e:
+                log.warning("[restler] Failed to parse logs: %s", e)
+
+        return findings
+
+
+class SchemathesisAdapter:
+    """Runs Schemathesis properties testing against API specification."""
+
+    def run(self, spec_path: Path, host: str, out_dir: Path) -> List[Finding]:
+        findings: List[Finding] = []
+        try:
+            res = subprocess.run(["which", "schemathesis"], capture_output=True, text=True)
+            if res.returncode != 0:
+                return []
+        except Exception:
+            return []
+
+        log.info("[schemathesis] Running properties test on %s...", host)
+        junit_xml = out_dir / "junit.xml"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        
+        cmd = [
+            "schemathesis", "run", str(spec_path),
+            "--checks", "all",
+            "--workers", "4",
+            "--junit-xml", str(junit_xml)
+        ]
+        try:
+            subprocess.run(cmd, capture_output=True, text=True, timeout=150)
+            if junit_xml.exists():
+                findings.extend(self._parse_junit_xml(junit_xml, host))
+        except Exception as e:
+            log.warning("[schemathesis] Run failed: %s", e)
+            
+        return findings
+
+    def _parse_junit_xml(self, xml_path: Path, host: str) -> List[Finding]:
+        findings: List[Finding] = []
+        try:
+            import xml.etree.ElementTree as ET
+            tree = ET.parse(str(xml_path))
+            root = tree.getroot()
+            for testcase in root.findall(".//testcase"):
+                failure = testcase.find("failure")
+                if failure is not None:
+                    name = testcase.get("name", "Schema violation")
+                    msg = failure.get("message", "")
+                    evidence = failure.text or msg
+                    findings.append(Finding(
+                        method="GET",
+                        path=testcase.get("classname", "*"),
+                        host=host,
+                        issue_class="schema_violation",
+                        category="robustness",
+                        severity="medium",
+                        tool="schemathesis",
+                        evidence=f"Schemathesis identified schema violation: {name}. Detail: {evidence[:200]}",
+                        status_code=400,
+                        remediation="Validate request bodies and inputs against your OpenAPI spec schema. Reject invalid inputs with 400 Bad Request."
+                    ))
+        except Exception as e:
+            log.warning("[schemathesis] Failed to parse XML: %s", e)
+        return findings
+
+
 # ---------------------------------------------------------------------------
 # Main orchestrator
-# ---------------------------------------------------------------------------
-
 class APIIntelligenceEngine:
 
     def __init__(self, scan_dir: Path, rate: int = 30,
@@ -881,17 +1120,26 @@ class APIIntelligenceEngine:
         self.expander = EndpointExpander(self.probe, wordlist)
         self.classifier = VulnerabilityClassifier()
         self.autoswagger = AutoSwaggerAdapter()
+        self.restler = RESTlerAdapter()
+        self.schemathesis = SchemathesisAdapter()
 
         # Output paths
         self.api_sec_dir = scan_dir / "16_api_security"
         self.findings_file = self.api_sec_dir / "api_findings.jsonl"
+        self.promoted_file = self.api_sec_dir / "promoted_vulnerabilities.jsonl"
         self.intel_dir = self.api_sec_dir / "intel"
         self.as_dir = self.api_sec_dir / "autoswagger"
+        self.restler_dir = self.api_sec_dir / "restler"
+        self.st_dir = self.api_sec_dir / "schemathesis"
+        self.specs_dir = self.api_sec_dir / "specs"
 
     def run(self) -> int:
         self.api_sec_dir.mkdir(parents=True, exist_ok=True)
         self.intel_dir.mkdir(parents=True, exist_ok=True)
         self.as_dir.mkdir(parents=True, exist_ok=True)
+        self.restler_dir.mkdir(parents=True, exist_ok=True)
+        self.st_dir.mkdir(parents=True, exist_ok=True)
+        self.specs_dir.mkdir(parents=True, exist_ok=True)
 
         log.info("=" * 60)
         log.info("ARISE API Intelligence Engine starting")
@@ -925,7 +1173,6 @@ class APIIntelligenceEngine:
         # ── Phase 5: Endpoint expansion ───────────────────────────────
         log.info("[Phase 5] Expanding endpoints with action wordlist…")
         expanded = self.expander.expand(api_endpoints[:50])  # cap base paths
-        # Probe expanded endpoints
         if expanded:
             expanded = self._probe_all(expanded)
             api_endpoints.extend(expanded)
@@ -933,24 +1180,72 @@ class APIIntelligenceEngine:
         # Save intel snapshot
         self._save_intel_snapshot(api_endpoints)
 
-        # ── Phase 6: Classify vulnerabilities ────────────────────────
-        log.info("[Phase 6] Classifying vulnerabilities (%d endpoints)…",
+        # ── Phase 6: Classify Stage A vulnerabilities ──────────────────
+        log.info("[Phase 6] Classifying Stage A vulnerabilities (%d endpoints)…",
                  len(api_endpoints))
         findings = self.classifier.classify(api_endpoints)
 
-        # ── Phase 7: AutoSwagger (enhanced with endpoint list) ────────
-        log.info("[Phase 7] Running AutoSwagger adapter…")
-        as_findings = self.autoswagger.run(api_endpoints, self.as_dir)
-        findings.extend(as_findings)
+        # ── Phase 7: Stage B Spec-Based Scanners ───────────────────────
+        log.info("[Phase 7] Running Spec-Based Scanners (Stage B)...")
+        unique_hosts = {ep.host for ep in api_endpoints if ep.host}
+        
+        for host in unique_hosts:
+            log.info("[spec-discovery] Probing %s for published specifications...", host)
+            spec_data = discover_spec(host, timeout=self.timeout)
+            
+            spec_host_dir = self.specs_dir / host
+            spec_host_dir.mkdir(parents=True, exist_ok=True)
+            spec_file_path = None
+            
+            if spec_data:
+                spec_file_path = spec_host_dir / "discovered_spec.json"
+                spec_file_path.write_text(json.dumps(spec_data, indent=2))
+                log.info("[spec-discovery] Discovered and saved spec for %s to %s", host, spec_file_path)
+            else:
+                log.info("[spec-discovery] No published spec found for %s. Generating synthetic spec...", host)
+                synthetic_spec_data = generate_synthetic_spec(api_endpoints, host)
+                spec_file_path = spec_host_dir / "synthetic_spec.json"
+                spec_file_path.write_text(json.dumps(synthetic_spec_data, indent=2))
+                log.info("[spec-discovery] Saved synthetic spec to %s", spec_file_path)
+            
+            # Run spec-driven scanners
+            # AutoSwagger
+            log.info("[Stage B] Running AutoSwagger for %s...", host)
+            as_findings = self.autoswagger.run(host, spec_file_path, self.as_dir)
+            findings.extend(as_findings)
+            
+            # RESTler
+            log.info("[Stage B] Running RESTler for %s...", host)
+            restler_host_dir = self.restler_dir / host
+            restler_findings = self.restler.run(spec_file_path, host, restler_host_dir)
+            findings.extend(restler_findings)
+            
+            # Schemathesis
+            log.info("[Stage B] Running Schemathesis for %s...", host)
+            st_host_dir = self.st_dir / host
+            st_findings = self.schemathesis.run(spec_file_path, host, st_host_dir)
+            findings.extend(st_findings)
 
-        # ── Deduplicate & write ───────────────────────────────────────
+        # ── Phase 8: Stage C Dedup + Confidence Scoring + Promotion ───
+        log.info("[Phase 8] Running Dedup, Confidence Scoring and Promotion (Stage C)...")
         findings = self._dedup(findings)
-        self._write_findings(findings)
+        
+        # Calculate confidence scores
+        promoted_findings = []
+        for f in findings:
+            confidence = self._compute_confidence(f)
+            f.confidence = confidence
+            if confidence in ("confirmed", "verified-exploit"):
+                promoted_findings.append(f)
+                
+        # Write outputs
+        self._write_findings(findings, promoted_findings)
         self._write_summary(len(api_endpoints), len(findings))
 
         log.info("=" * 60)
-        log.info("Complete. Endpoints: %d  Findings: %d  Output: %s",
-                 len(api_endpoints), len(findings), self.findings_file)
+        log.info("Complete. Endpoints: %d  Total Findings: %d (Promoted: %d)",
+                 len(api_endpoints), len(findings), len(promoted_findings))
+        log.info("Outputs:\n  - All: %s\n  - Promoted: %s", self.findings_file, self.promoted_file)
         log.info("=" * 60)
         return len(findings)
 
@@ -1001,11 +1296,30 @@ class APIIntelligenceEngine:
         return sorted(seen.values(),
                       key=lambda x: -SEVERITY_RANK.get(x.severity, 0))
 
-    def _write_findings(self, findings: List[Finding]) -> None:
+    @staticmethod
+    def _compute_confidence(finding: Finding) -> str:
+        if len(finding.tools) >= 2:
+            return "confirmed"
+            
+        exploit_classes = ("broken_object_authorization", "mass_assignment", "jwt_bypass", "auth_bypass", "403_bypass")
+        exploit_keywords = ("jwt cracked", "alg=none bypass", "403 bypassed", "mass assignment confirmed", "live exploit")
+        
+        ev_lower = finding.evidence.lower()
+        if finding.issue_class in exploit_classes or any(kw in ev_lower for kw in exploit_keywords):
+            return "verified-exploit"
+            
+        return "single-tool"
+
+    def _write_findings(self, findings: List[Finding], promoted: List[Finding]) -> None:
         with open(self.findings_file, "w") as fh:
             for f in findings:
                 fh.write(f.to_jsonl() + "\n")
         log.info("Wrote %d findings → %s", len(findings), self.findings_file)
+        
+        with open(self.promoted_file, "w") as fh:
+            for f in promoted:
+                fh.write(f.to_jsonl() + "\n")
+        log.info("Wrote %d promoted findings → %s", len(promoted), self.promoted_file)
 
     def _save_intel_snapshot(self, endpoints: List[Endpoint]) -> None:
         snap = self.intel_dir / "endpoints_snapshot.jsonl"

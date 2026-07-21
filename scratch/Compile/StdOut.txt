@@ -1,0 +1,44 @@
+[15/07/2026 10:02:27 PM] Generating grammar...
+[15/07/2026 10:02:27 PM] Getting requests...
+[15/07/2026 10:02:27 PM] Getting dependencies...
+[15/07/2026 10:02:27 PM] Getting path consumers...
+[15/07/2026 10:02:27 PM] Getting query consumers...
+[15/07/2026 10:02:27 PM] Getting header consumers...
+[15/07/2026 10:02:27 PM] Getting body consumers...
+[15/07/2026 10:02:27 PM] Getting producers...
+[15/07/2026 10:02:27 PM] Done processing producers
+[15/07/2026 10:02:27 PM] Compute dependencies
+[[15/07/2026 10:02:27 PM] Second pass dependencies for request { endpoint = "/api/v1/health"
+  xMsPath = None
+  method = Get }15/07/2026 10:02:27 PM] Second pass dependencies for request { endpoint = "/api/v1/health"
+  xMsPath = None
+  method = Get }
+
+[15/07/2026 10:02:27 PM] Second pass dependencies for request { endpoint = "/api/v1/health"
+  xMsPath = None
+  method = Get }
+[15/07/2026 10:02:27 PM] Second pass dependencies for request { endpoint = "/api/v1/health"
+  xMsPath = None
+  method = Get }
+[15/07/2026 10:02:27 PM] Done dependencies for request { endpoint = "/api/v1/health"
+  xMsPath = None
+  method = Get }
+[15/07/2026 10:02:27 PM] Done dependencies for request { endpoint = "/api/v1/health"
+  xMsPath = None
+  method = Get }
+[15/07/2026 10:02:27 PM] Done dependencies for request { endpoint = "/api/v1/health"
+  xMsPath = None
+  method = Get }
+[15/07/2026 10:02:27 PM] Done dependencies for request { endpoint = "/api/v1/health"
+  xMsPath = None
+  method = Get }
+[15/07/2026 10:02:27 PM] Assigning equality constraints...
+[15/07/2026 10:02:27 PM] Getting ordering constraints...
+[15/07/2026 10:02:27 PM] Dependency analysis completed.
+[15/07/2026 10:02:27 PM] Generating request primitives...
+Writing new dictionary to /Users/apple/Documents/APIHarvester/scratch/Compile/dict.json
+[15/07/2026 10:02:27 PM] Generating python grammar...
+[15/07/2026 10:02:27 PM] Get requests
+[15/07/2026 10:02:27 PM] Done get requests
+[15/07/2026 10:02:27 PM] Done generating python grammar.
+Workflow completed.  See /Users/apple/Documents/APIHarvester/scratch/Compile for REST-ler grammar.

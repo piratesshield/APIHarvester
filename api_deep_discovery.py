@@ -18,12 +18,14 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
 
 # ─── Page Classification Patterns ────────────────────────────────────────────
 
@@ -287,43 +289,118 @@ def fetch_page_content(url, timeout=15):
         return ""
 
 
-def extract_api_from_js(js_dir):
-    """Extract API endpoints from downloaded JS files."""
-    api_urls = []
-    if not os.path.isdir(js_dir):
-        return api_urls
-
-    endpoint_re = re.compile(
-        r'''["'`](/api/[^"'`\s]{3,}|/v[0-9]+/[^"'`\s]{3,}|/graphql[^"'`\s]*|/rest/[^"'`\s]{3,})["'`]''',
-        re.I
-    )
-    fetch_re = re.compile(
-        r'''(?:fetch|axios|XMLHttpRequest|\.ajax|\.get|\.post|\.put|\.delete)\s*\(\s*["'`]([^"'`]+)["'`]''',
-        re.I
-    )
-
-    for fname in os.listdir(js_dir):
-        if not fname.endswith('.js'):
-            continue
-        fpath = os.path.join(js_dir, fname)
+def run_gospider(hosts, output_dir):
+    """Run gospider on target hosts."""
+    gospider_urls = []
+    gospider_bin = "/Users/apple/go/bin/gospider"
+    if not os.path.isfile(gospider_bin):
         try:
-            content = Path(fpath).read_text(errors='ignore')
-            for m in endpoint_re.finditer(content):
-                api_urls.append(m.group(1))
-            for m in fetch_re.finditer(content):
-                api_urls.append(m.group(1))
-        except OSError:
-            continue
+            result = subprocess.run(["which", "gospider"], capture_output=True, text=True)
+            if result.returncode == 0:
+                gospider_bin = result.stdout.strip()
+            else:
+                return []
+        except Exception:
+            return []
 
-    return list(set(api_urls))
+    print(f"[*] Running gospider crawl on {len(hosts)} hosts...")
+    temp_dir = os.path.join(output_dir, "gospider_raw")
+    os.makedirs(temp_dir, exist_ok=True)
+
+    for host in hosts:
+        site = host
+        if not site.startswith(('http://', 'https://')):
+            site = f"https://{site}"
+        
+        cmd = [
+            gospider_bin,
+            "-s", site,
+            "-o", temp_dir,
+            "-c", "10",
+            "-d", "3",
+            "--quiet",
+            "--subs",
+            "--js",
+            "--sitemap",
+            "--robots"
+        ]
+        try:
+            subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        except Exception as e:
+            print(f"[!] Error running gospider on {site}: {e}")
+
+    for root, dirs, files in os.walk(temp_dir):
+        for file in files:
+            file_path = os.path.join(root, file)
+            try:
+                with open(file_path, errors='ignore') as f:
+                    for line in f:
+                        line = line.strip()
+                        if " - " in line:
+                            parts = line.split(" - ", 1)
+                            url = parts[1].strip()
+                        else:
+                            url = line
+                        if url.startswith("http"):
+                            gospider_urls.append(url)
+            except Exception as e:
+                print(f"[!] Error reading gospider output file {file_path}: {e}")
+
+    try:
+        shutil.rmtree(temp_dir)
+    except Exception:
+        pass
+
+    print(f"[+] gospider found {len(set(gospider_urls))} unique URLs")
+    return list(set(gospider_urls))
 
 
-def build_injectable_urls(all_urls, xhr_urls, forms, js_apis, base_hosts):
-    """Build the final list of injectable URLs with classifications."""
+def run_gau(hosts):
+    """Run gau on domains from target hosts."""
+    gau_urls = []
+    gau_bin = "/Users/apple/go/bin/gau"
+    if not os.path.isfile(gau_bin):
+        try:
+            result = subprocess.run(["which", "gau"], capture_output=True, text=True)
+            if result.returncode == 0:
+                gau_bin = result.stdout.strip()
+            else:
+                return []
+        except Exception:
+            return []
+
+    domains = set()
+    for host in hosts:
+        parsed = urlparse(host)
+        domain = parsed.netloc or host
+        if ":" in domain:
+            domain = domain.split(":")[0]
+        if domain:
+            domains.add(domain)
+
+    print(f"[*] Running gau crawl on {len(domains)} domains...")
+    for domain in domains:
+        cmd = [gau_bin, domain, "--threads", "10"]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            if result.returncode == 0:
+                for line in result.stdout.splitlines():
+                    line = line.strip()
+                    if line.startswith("http"):
+                        gau_urls.append(line)
+        except Exception as e:
+            print(f"[!] Error running gau on {domain}: {e}")
+
+    print(f"[+] gau found {len(set(gau_urls))} unique URLs")
+    return list(set(gau_urls))
+
+
+def build_injectable_urls(all_urls, xhr_urls, forms, base_hosts):
+    """Build the final list of injectable URLs with classifications, splitting endpoints and queries."""
     injectable = []
     seen = set()
 
-    # URLs with query parameters from headless crawl
+    # URLs with query parameters from headless/web crawl
     for url in set(all_urls + xhr_urls):
         parsed = urlparse(url)
         if not parsed.query:
@@ -332,13 +409,19 @@ def build_injectable_urls(all_urls, xhr_urls, forms, js_apis, base_hosts):
             continue
         seen.add(url)
 
-        params = parse_qs(parsed.query, keep_blank_values=True)
+        # Split endpoint and query parameters
+        endpoint_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+        query_string = parsed.query
+
+        params = parse_qs(query_string, keep_blank_values=True)
         param_names = set(p.lower() for p in params.keys())
         is_sqli_candidate = bool(param_names & SQLI_PARAM_NAMES)
 
         entry = {
             "url": url,
-            "source": "xhr_intercept" if url in set(xhr_urls) else "headless_crawl",
+            "endpoint": endpoint_url,
+            "query": query_string,
+            "source": "xhr_intercept" if url in set(xhr_urls) else "web_crawl",
             "classifications": classify_url(url),
             "params": list(params.keys()),
             "sqli_candidate": is_sqli_candidate,
@@ -357,8 +440,11 @@ def build_injectable_urls(all_urls, xhr_urls, forms, js_apis, base_hosts):
         if rest_param_re.search(parsed.path):
             if url not in seen:
                 seen.add(url)
+                endpoint_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
                 injectable.append({
                     "url": url,
+                    "endpoint": endpoint_url,
+                    "query": "",
                     "source": "rest_path_param",
                     "classifications": ["api_endpoint"],
                     "params": ["path_id"],
@@ -372,8 +458,12 @@ def build_injectable_urls(all_urls, xhr_urls, forms, js_apis, base_hosts):
         if action in seen:
             continue
         seen.add(action)
+        parsed = urlparse(action)
+        endpoint_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
         injectable.append({
             "url": action,
+            "endpoint": endpoint_url,
+            "query": parsed.query or "",
             "source": "form_discovery",
             "method": form["method"],
             "classifications": form["classification"],
@@ -385,31 +475,6 @@ def build_injectable_urls(all_urls, xhr_urls, forms, js_apis, base_hosts):
             "has_query": form["method"] == "GET",
         })
 
-    # JS-extracted API paths (relative — need to resolve against hosts)
-    for api_path in js_apis:
-        if api_path.startswith(('http://', 'https://')):
-            full_url = api_path
-        else:
-            # Resolve against first available host
-            if not base_hosts:
-                continue
-            host = base_hosts[0]
-            if not host.startswith(('http://', 'https://')):
-                host = f"https://{host}"
-            full_url = f"{host.rstrip('/')}{api_path}"
-
-        if full_url in seen:
-            continue
-        seen.add(full_url)
-        injectable.append({
-            "url": full_url,
-            "source": "js_extraction",
-            "classifications": classify_url(full_url),
-            "params": list(parse_qs(urlparse(full_url).query).keys()) if '?' in full_url else [],
-            "sqli_candidate": False,
-            "has_query": '?' in full_url,
-        })
-
     return injectable
 
 
@@ -418,7 +483,6 @@ def main():
     parser.add_argument("--http-hosts", required=True, help="File with HTTP hosts (from httpx)")
     parser.add_argument("--output-dir", required=True, help="Output directory for results")
     parser.add_argument("--crawled-urls", help="Existing crawled URLs file (all_urls.txt)")
-    parser.add_argument("--js-dir", help="Directory with downloaded JS files")
     parser.add_argument("--manifest", help="Path to manifest.json")
     parser.add_argument("--depth", type=int, default=3, help="Crawl depth (default: 3)")
     parser.add_argument("--concurrency", type=int, default=10, help="Concurrent crawlers")
@@ -439,18 +503,55 @@ def main():
     with open(args.http_hosts) as f:
         base_hosts = [line.strip() for line in f if line.strip()]
 
+    # Parse manifest.json if provided
+    if args.manifest and os.path.isfile(args.manifest):
+        try:
+            with open(args.manifest) as f:
+                manifest = json.load(f)
+            manifest_hosts = []
+            for host, data in manifest.get("hosts", {}).items():
+                url = data.get("url")
+                if url:
+                    manifest_hosts.append(url)
+                elif data.get("is_api"):
+                    manifest_hosts.append(f"https://{host}")
+            if manifest_hosts:
+                base_hosts = list(sorted(set(base_hosts + manifest_hosts)))
+                print(f"[+] Loaded {len(manifest_hosts)} hosts from manifest.json. Total base hosts: {len(base_hosts)}")
+        except Exception as e:
+            print(f"[!] Error loading manifest: {e}")
+
     print(f"[*] API Deep Discovery starting with {len(base_hosts)} HTTP hosts")
+
+    # Write a temporary hosts file for Katana list input
+    temp_hosts_file = os.path.join(output_dir, "temp_crawling_hosts.txt")
+    with open(temp_hosts_file, "w") as f:
+        for host in base_hosts:
+            f.write(host + "\n")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # PHASE 1: Headless Browser Interception (katana --headless --xhr)
     # ═══════════════════════════════════════════════════════════════════════════
     print("\n[*] PHASE 1: Headless browser interception...")
     all_urls, xhr_urls = run_katana_headless(
-        args.http_hosts, output_dir,
+        temp_hosts_file, output_dir,
         max_depth=args.depth,
         concurrency=args.concurrency,
         rate=args.rate
     )
+
+    try:
+        os.unlink(temp_hosts_file)
+    except Exception:
+        pass
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PHASE 2: Additional Web Crawling (Gospider & GAU)
+    # ═══════════════════════════════════════════════════════════════════════════
+    print("\n[*] PHASE 2: Running auxiliary web crawls (gospider & gau)...")
+    gospider_urls = run_gospider(base_hosts, output_dir)
+    gau_urls = run_gau(base_hosts)
+    all_urls = list(sorted(set(all_urls + gospider_urls + gau_urls)))
 
     # Merge with existing crawled URLs if available
     if args.crawled_urls and os.path.isfile(args.crawled_urls):
@@ -460,9 +561,9 @@ def main():
         all_urls = list(set(all_urls + existing))
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # PHASE 2: Page Classification & Form Discovery
+    # PHASE 3: Page Classification & Form Discovery
     # ═══════════════════════════════════════════════════════════════════════════
-    print("\n[*] PHASE 2: Page classification & form discovery...")
+    print("\n[*] PHASE 3: Page classification & form discovery...")
     all_forms = []
     pages_fetched = 0
 
@@ -505,21 +606,10 @@ def main():
     print(f"[+] Fetched {pages_fetched} pages, found {len(all_forms)} forms")
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # PHASE 3: JS API Extraction
-    # ═══════════════════════════════════════════════════════════════════════════
-    print("\n[*] PHASE 3: JS API endpoint extraction...")
-    js_apis = []
-    if args.js_dir:
-        js_apis = extract_api_from_js(args.js_dir)
-        print(f"[+] Extracted {len(js_apis)} API paths from JS files")
-    else:
-        print("[-] No JS directory provided, skipping JS extraction")
-
-    # ═══════════════════════════════════════════════════════════════════════════
     # PHASE 4: Build Injectable URL List
     # ═══════════════════════════════════════════════════════════════════════════
     print("\n[*] PHASE 4: Building injectable URL inventory...")
-    injectable = build_injectable_urls(all_urls, xhr_urls, all_forms, js_apis, base_hosts)
+    injectable = build_injectable_urls(all_urls, xhr_urls, all_forms, base_hosts)
     print(f"[+] Total injectable targets: {len(injectable)}")
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -610,13 +700,42 @@ def main():
         for url in sorted(set(xhr_urls)):
             f.write(url + "\n")
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # FEEDBACK LOOP: Append findings back to all_urls.txt
+    # ═══════════════════════════════════════════════════════════════════════════
+    loop_file = args.crawled_urls
+    if not loop_file:
+        loop_file = os.path.abspath(os.path.join(output_dir, "..", "09_crawling", "all_urls.txt"))
+    
+    loop_urls = []
+    for entry in injectable:
+        if entry.get("sqli_candidate") or entry.get("has_query") or entry.get("params"):
+            loop_urls.append(entry["url"])
+            
+    if loop_urls:
+        try:
+            loop_dir = os.path.dirname(loop_file)
+            if loop_dir:
+                os.makedirs(loop_dir, exist_ok=True)
+            existing_all = []
+            if os.path.exists(loop_file):
+                with open(loop_file, "r", errors="ignore") as f:
+                    existing_all = [l.strip() for l in f if l.strip()]
+            merged_all = list(sorted(set(existing_all + loop_urls)))
+            with open(loop_file, "w") as f:
+                for u in merged_all:
+                    f.write(u + "\n")
+            print(f"[+] Feedback loop: Appended {len(loop_urls)} targets to {loop_file} (Total URLs: {len(merged_all)})")
+        except Exception as e:
+            print(f"[!] Warning: Feedback loop write failed: {e}")
+
     # Module result summary
     result_summary = {
         "module": "api_deep_discovery",
         "total_urls_discovered": len(all_urls),
         "xhr_intercepted": len(set(xhr_urls)),
         "forms_discovered": len(all_forms),
-        "js_api_paths": len(js_apis),
+        "js_api_paths": 0,
         "total_injectable": len(injectable),
         "sqli_candidates": sum(1 for e in injectable if e.get("sqli_candidate")),
         "api_endpoints": sum(1 for e in injectable if "api_endpoint" in e.get("classifications", [])),
@@ -635,10 +754,9 @@ def main():
     print("\n" + "=" * 60)
     print("  API DEEP DISCOVERY — RESULTS")
     print("=" * 60)
-    print(f"  Total URLs from headless crawl : {len(all_urls)}")
+    print(f"  Total URLs from crawls         : {len(all_urls)}")
     print(f"  XHR/Fetch intercepted          : {len(set(xhr_urls))}")
     print(f"  Forms discovered               : {len(all_forms)}")
-    print(f"  JS API paths extracted         : {len(js_apis)}")
     print(f"  Total injectable targets       : {len(injectable)}")
     print(f"  SQLi candidates                : {result_summary['sqli_candidates']}")
     print(f"  API endpoints                  : {result_summary['api_endpoints']}")

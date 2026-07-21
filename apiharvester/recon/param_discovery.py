@@ -129,23 +129,40 @@ def _arjun_discover(client, url, method="GET", chunk_size=25):
 
 
 def _arjun_tool(url):
-    """Try external arjun tool for cross-validation. Uses the downloaded
-    params.txt wordlist (see scripts/install_requirements.sh) if present,
-    else falls back to arjun's own bundled default wordlist."""
+    """Try external arjun tool for cross-validation.
+
+    Returns a list of discovered parameter names. Filters out all arjun
+    diagnostic/noise lines that are not actual parameter names.
+    """
     if not tool_available("arjun"):
         return []
     args = ["-u", url, "-m", "GET", "-q"]
     if os.path.exists(PARAM_WORDLIST_FILE):
         args += ["-w", PARAM_WORDLIST_FILE]
-    else:
-        _log(f"  arjun: no wordlist at {PARAM_WORDLIST_FILE} "
-             f"(run scripts/install_requirements.sh), using arjun's default")
+
+    # Noise patterns arjun emits that are NOT parameter names
+    _ARJUN_NOISE = (
+        "doesn't seem to be",
+        "url doesn't",
+        "skipping",
+        "encountered an error",
+        "invalid url",
+        "[!]", "[*]", "[+]", "[-]",
+        "http://", "https://",
+    )
+
     lines = run_tool_lines("arjun", args, timeout=120)
     params = []
     for line in lines:
-        line = line.strip()
-        if line and not line.startswith("["):
-            params.append(line)
+        clean = line.strip()
+        if not clean:
+            continue
+        lower = clean.lower()
+        if any(noise in lower for noise in _ARJUN_NOISE):
+            continue  # silently drop arjun diagnostics
+        if clean.startswith("["):
+            continue  # arjun status tags
+        params.append(clean)
     return params
 
 
@@ -155,31 +172,57 @@ def discover_params(ctx: ScanContext):
     if not endpoints:
         endpoints = [e for e in ctx.endpoints if e.status_code
                      and e.status_code < 400]
-    _log(f"Discovering params on {len(endpoints)} endpoints (concurrently with {ctx.threads} threads)")
+
+    # Skip endpoints that already have templated path parameters
+    # (e.g., /api/v2/score/league/{slug}/meeting/{meetingId})
+    # These are fully specified and don't need query-param probing
+    import re
+    templated = []
+    for ep in endpoints:
+        if re.search(r"\{[a-zA-Z0-9_]+\}", ep.path):
+            templated.append(ep)
+
+    probe_endpoints = [e for e in endpoints if e not in templated]
+    _log(f"Discovering params on {len(probe_endpoints)} endpoints "
+         f"({len(templated)} skipped — already have path params) "
+         f"(concurrently with {ctx.threads} threads)")
 
     def scan_endpoint(ep):
         thread_client = HTTPClient(timeout=ctx.timeout)
         url = ep.base_url()
-        found = _arjun_discover(thread_client, url)
 
+        # Pre-flight: probe the endpoint once to see if it's reachable.
+        # Endpoints returning 4xx/5xx have nothing to discover; skip them
+        # so we don't spray hundreds of probes at a dead URL.
+        preflight = thread_client.request("GET", url)
+        if preflight.status == 0:
+            return ep, [], f"connection error: {preflight.error or 'no response'}"
+        if preflight.status == 404:
+            return ep, [], f"HTTP 404 — endpoint not found on this host"
+        if preflight.status >= 400:
+            return ep, [], f"HTTP {preflight.status} — skipping (not probing error responses)"
+
+        found = _arjun_discover(thread_client, url)
         ext_params = _arjun_tool(url)
         for p in ext_params:
             if p not in found:
                 found.append(p)
-        return ep, found
+        return ep, found, None
 
     total_params = 0
     with concurrent.futures.ThreadPoolExecutor(max_workers=ctx.threads) as executor:
-        futures = {executor.submit(scan_endpoint, ep): ep for ep in endpoints}
+        futures = {executor.submit(scan_endpoint, ep): ep for ep in probe_endpoints}
         for future in concurrent.futures.as_completed(futures):
-            ep, found = future.result()
-            if found:
+            ep, found, skip_reason = future.result()
+            if skip_reason:
+                _log(f"  {ep.path}: skipped — {skip_reason}")
+            elif found:
                 for p in found:
                     # "1" is the literal probe value _build_query used to
                     # confirm this param, so record it as the observed value.
                     ep.params.setdefault(p, "1")
                 total_params += len(found)
-                _log(f"  {ep.path}: {found}")
+                _log(f"  {ep.path}: found params {found}")
 
     spec_params = _extract_params_from_specs(ctx)
     total_params += spec_params

@@ -1,4 +1,10 @@
-"""Attack 3: Mass Assignment / Excessive Data Exposure."""
+"""Attack 3: Mass Assignment / Excessive Data Exposure.
+
+Hardened per REAL_WORLD_RESEARCH.md §3 (GitHub/Homakov). A mass-assignment
+finding is only trustworthy when the injected privilege field *persists* — i.e.
+it is still present when we re-read the object — not merely echoed back in the
+write response (many frameworks reflect the request body without saving it).
+"""
 import json
 import sys
 
@@ -6,6 +12,11 @@ from ..config import MASS_ASSIGNMENT_FIELDS
 from ..http_client import HTTPClient
 from ..models import Finding, ScanContext
 from ..utils.json_shape import extract_fields as _extract_fields
+from ..utils.validation import looks_like_real_secret
+
+
+def _log(msg):
+    print(f"[*] Attack 3 (mass-assignment): {msg}", file=sys.stderr)
 
 
 def _has_sensitive_fields(fields):
@@ -81,25 +92,63 @@ def run_mass_assignment(ctx: ScanContext):
 
             resp = client.request(method, url, body=body, headers=req_headers)
 
-            if 200 <= resp.status < 300:
-                resp_fields = _extract_fields(resp.body)
-                injected = set(payload.keys()) & resp_fields
-                if injected:
-                    ctx.add_finding(Finding(
-                        title=f"Mass assignment: {', '.join(sorted(injected))} "
-                              f"accepted via {method}",
-                        severity="high",
-                        category="API3:2023 Broken Object Property Level Authorization",
-                        method=method,
-                        path=ep.path,
-                        host=ep.host,
-                        status=resp.status,
-                        evidence=f"Injected fields {sorted(injected)} accepted, "
-                                 f"response {resp.status}",
-                        remediation="Whitelist allowed fields for each endpoint. "
-                                    "Never bind request body directly to models.",
-                        attack_phase="mass_assignment"))
-                    found += 1
-                    break
+            if not (200 <= resp.status < 300):
+                continue
+
+            echoed = set(payload.keys()) & _extract_fields(resp.body)
+            if not echoed:
+                continue
+
+            # VALIDATION: an echo is not proof. Re-read the object and confirm
+            # the injected privilege field actually PERSISTED with our value.
+            verify = client.request("GET", url, headers=headers)
+            persisted = set()
+            if verify.status == 200:
+                try:
+                    obj = json.loads(verify.body)
+                    obj = obj.get("data", obj) if isinstance(obj, dict) else obj
+                except (ValueError, TypeError):
+                    obj = None
+                if isinstance(obj, dict):
+                    for f in echoed:
+                        if f in obj and str(obj[f]) == str(payload[f]):
+                            persisted.add(f)
+
+            if persisted:
+                ctx.add_finding(Finding(
+                    title=f"Mass assignment CONFIRMED: {', '.join(sorted(persisted))} "
+                          f"persisted via {method}",
+                    severity="high",
+                    category="API3:2023 Broken Object Property Level Authorization",
+                    method=method,
+                    path=ep.path,
+                    host=ep.host,
+                    status=resp.status,
+                    evidence=f"Injected {sorted(persisted)} via {method} and "
+                             f"confirmed persisted on re-read (GET). "
+                             f"Privilege fields are mass-assignable.",
+                    remediation="Whitelist allowed fields per endpoint. "
+                                "Never bind request body directly to models.",
+                    attack_phase="mass_assignment"))
+                found += 1
+                break
+            else:
+                # Echoed but not persisted — report low-confidence only.
+                ctx.add_finding(Finding(
+                    title=f"Possible mass assignment: {', '.join(sorted(echoed))} "
+                          f"echoed via {method} (persistence unconfirmed)",
+                    severity="low",
+                    category="API3:2023 Broken Object Property Level Authorization",
+                    method=method,
+                    path=ep.path,
+                    host=ep.host,
+                    status=resp.status,
+                    evidence=f"Fields {sorted(echoed)} reflected in {method} "
+                             f"response but not confirmed on re-read; may be "
+                             f"harmless echo. Manual review advised.",
+                    remediation="Whitelist allowed fields per endpoint.",
+                    attack_phase="mass_assignment"))
+                found += 1
+                break
 
     _log(f"Mass assignment findings: {found}")

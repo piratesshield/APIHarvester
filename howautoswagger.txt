@@ -1,0 +1,426 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2870
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\froman\fcharset0 Times-Roman;\f1\froman\fcharset0 Times-Italic;\f2\froman\fcharset0 Times-Bold;
+\f3\fmodern\fcharset0 Courier;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red109\green109\blue109;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;\cssrgb\c50196\c50196\c50196;}
+{\*\listtable{\list\listtemplateid1\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat0\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid1\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid1}
+{\list\listtemplateid2\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat0\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid101\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid2}
+{\list\listtemplateid3\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat0\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid201\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid3}
+{\list\listtemplateid4\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat0\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid301\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid4}
+{\list\listtemplateid5\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat0\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid401\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid5}
+{\list\listtemplateid6\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat0\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid501\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid6}
+{\list\listtemplateid7\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat0\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid601\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid7}
+{\list\listtemplateid8\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat0\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid701\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid8}
+{\list\listtemplateid9\listhybrid{\listlevel\levelnfc23\levelnfcn23\leveljc0\leveljcn0\levelfollow0\levelstartat0\levelspace360\levelindent0{\*\levelmarker \{disc\}}{\leveltext\leveltemplateid801\'01\uc0\u8226 ;}{\levelnumbers;}\fi-360\li720\lin720 }{\listname ;}\listid9}}
+{\*\listoverridetable{\listoverride\listid1\listoverridecount0\ls1}{\listoverride\listid2\listoverridecount0\ls2}{\listoverride\listid3\listoverridecount0\ls3}{\listoverride\listid4\listoverridecount0\ls4}{\listoverride\listid5\listoverridecount0\ls5}{\listoverride\listid6\listoverridecount0\ls6}{\listoverride\listid7\listoverridecount0\ls7}{\listoverride\listid8\listoverridecount0\ls8}{\listoverride\listid9\listoverridecount0\ls9}}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\fs24 \cf0 \expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 That's actually a much better format for developer documentation. Instead of explaining 
+\f1\i what
+\f0\i0  it does with diagrams, you should explain 
+\f2\b why each step exists, what the code is doing internally, the logic behind it, the decisions being made, and the expected outcome
+\f0\b0 . Here's how I'd write it.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa321\partightenfactor0
+
+\f2\b\fs48 \cf0 \strokec2 Swagger/OpenAPI Discovery Engine \'96 Developer Guide\
+\pard\pardeftab720\sa298\partightenfactor0
+
+\fs36 \cf0 Overview\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b0\fs24 \cf0 The purpose of the Swagger Discovery Engine is to automatically locate publicly exposed Swagger or OpenAPI specifications on a target application. Instead of assuming that an API specification exists at a fixed location, the engine performs multiple discovery techniques in a specific order, gradually increasing the search depth while minimizing unnecessary HTTP requests.\
+The discovery process is divided into multiple phases. Each phase attempts to locate the API specification using increasingly aggressive techniques. As soon as a valid specification is found, the remaining discovery phases are skipped to reduce network traffic and improve performance.\
+A specification is considered valid only after it has been downloaded, parsed successfully, and verified to contain the required OpenAPI or Swagger schema fields.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa321\partightenfactor0
+
+\f2\b\fs48 \cf0 \strokec2 Phase 1 \'96 Swagger UI Discovery\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b0\fs24 \cf0 The first phase attempts to determine whether the target exposes a Swagger UI.\
+This approach is preferred because many production applications do not expose 
+\f3\fs26 swagger.json
+\f0\fs24  or 
+\f3\fs26 openapi.json
+\f0\fs24  directly. Instead, they expose an interactive documentation portal that dynamically loads the specification through JavaScript.\
+The engine maintains a predefined list of the most common Swagger UI locations collected from various frameworks including Spring Boot, ASP.NET Core, FastAPI, NestJS, Express, Flask, Django, and Go applications.\
+Examples include:\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sa240\partightenfactor0
+\ls1\ilvl0
+\f3\fs26 \cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /swagger
+\f0\fs24 \
+\ls1\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /swagger/
+\f0\fs24 \
+\ls1\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /swagger-ui
+\f0\fs24 \
+\ls1\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /swagger-ui.html
+\f0\fs24 \
+\ls1\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /docs
+\f0\fs24 \
+\ls1\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /api/docs
+\f0\fs24 \
+\ls1\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /api/swagger
+\f0\fs24 \
+\ls1\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /redoc
+\f0\fs24 \
+\ls1\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /api-docs
+\f0\fs24 \
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 For each candidate path, the engine constructs the absolute URL and performs an HTTP GET request.\
+After receiving the response, several validation checks are performed.\
+The response must return HTTP 200.\
+The response body must contain indicators commonly associated with Swagger UI such as:\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sa240\partightenfactor0
+\ls2\ilvl0\cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 SwaggerUIBundle\
+\ls2\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 swagger-ui\
+\ls2\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 openapi\
+\ls2\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 swagger\
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 The presence of these indicators confirms that the page is likely a documentation portal rather than an unrelated HTML page.\
+Only pages satisfying these conditions proceed to the next stage.\
+This significantly reduces false positives.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa321\partightenfactor0
+
+\f2\b\fs48 \cf0 \strokec2 Phase 2 \'96 HTML Specification Extraction\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b0\fs24 \cf0 Once a Swagger UI page has been identified, the engine attempts to locate the actual API specification.\
+The HTML page itself is not useful because it only renders the interface.\
+The real OpenAPI document is usually loaded dynamically.\
+The engine parses every inline 
+\f3\fs26 <script>
+\f0\fs24  block and searches for JavaScript configuration objects.\
+Depending on the framework, the specification location may appear under different configuration properties.\
+The parser searches for properties such as:\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sa240\partightenfactor0
+\ls3\ilvl0\cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 url\
+\ls3\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 urls\
+\ls3\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 configUrl\
+\ls3\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 definitionUrl\
+\ls3\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 defaultDefinitionUrl\
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 For example:\
+\pard\pardeftab720\partightenfactor0
+
+\f3\fs26 \cf0 SwaggerUIBundle(\{\
+    url: "/swagger/v1/swagger.json"\
+\})\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\fs24 \cf0 The parser extracts the URL value without executing any JavaScript.\
+If multiple specifications are configured, every discovered URL is added to the download queue.\
+Relative URLs are converted into absolute URLs using the target's base URL.\
+Duplicate URLs are removed before downloading.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa321\partightenfactor0
+
+\f2\b\fs48 \cf0 \strokec2 Phase 3 \'96 External JavaScript Analysis\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b0\fs24 \cf0 Modern Swagger deployments frequently move their configuration into external JavaScript files instead of embedding it directly inside the HTML.\
+For this reason, the discovery engine extracts every locally hosted JavaScript file referenced by the page.\
+Each JavaScript file is downloaded individually.\
+The engine never executes JavaScript.\
+Instead, it performs static analysis using regular expressions.\
+The parser searches for configuration patterns including:\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sa240\partightenfactor0
+\ls4\ilvl0\cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 SwaggerUIBundle()\
+\ls4\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 configUrl\
+\ls4\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 urls\
+\ls4\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 definitionURL\
+\ls4\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 defaultDefinitionUrl\
+\ls4\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 url\
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 Example:\
+\pard\pardeftab720\partightenfactor0
+
+\f3\fs26 \cf0 const ui = SwaggerUIBundle(\{\
+    url: "/api/swagger.json"\
+\});\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\fs24 \cf0 When a specification URL is discovered, it is added to the download queue.\
+The parser also follows nested configuration references.\
+For example:\
+\pard\pardeftab720\partightenfactor0
+
+\f3\fs26 \cf0 configUrl: "/swagger-config"\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\fs24 \cf0 The engine downloads 
+\f3\fs26 /swagger-config
+\f0\fs24 , extracts the referenced specification, and continues recursively until the actual OpenAPI document is located.\
+This behaviour is particularly useful for ASP.NET Core applications using Swashbuckle.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa321\partightenfactor0
+
+\f2\b\fs48 \cf0 \strokec2 Phase 4 \'96 Embedded Specification Detection\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b0\fs24 \cf0 Some applications do not reference an external specification at all.\
+Instead, the complete OpenAPI document is embedded directly inside a JavaScript variable.\
+Example:\
+\pard\pardeftab720\partightenfactor0
+
+\f3\fs26 \cf0 const apiSpec = \{\
+    swagger: "2.0",\
+    paths: \{\
+        ...\
+    \}\
+\};\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\fs24 \cf0 The discovery engine scans downloaded JavaScript files for large object literals that contain either the 
+\f3\fs26 swagger
+\f0\fs24  or 
+\f3\fs26 openapi
+\f0\fs24  field.\
+Since JavaScript objects are not valid JSON, several transformations are required before parsing.\
+The parser performs the following normalization steps:\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sa240\partightenfactor0
+\ls5\ilvl0\cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Converts single quotes to double quotes.\
+\ls5\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Adds quotes around unquoted property names.\
+\ls5\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Removes trailing commas.\
+\ls5\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Converts JavaScript boolean and null values into valid JSON equivalents where necessary.\
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 After normalization, the object is passed to the JSON parser.\
+If parsing succeeds and the resulting object contains a valid OpenAPI or Swagger schema, it is treated as a complete specification.\
+This allows the engine to recover specifications that never exist as standalone files.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa321\partightenfactor0
+
+\f2\b\fs48 \cf0 \strokec2 Phase 5 \'96 Swashbuckle Configuration Resolution\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b0\fs24 \cf0 ASP.NET Core applications using Swashbuckle often expose a configuration endpoint rather than referencing the specification directly.\
+Instead of:\
+\pard\pardeftab720\partightenfactor0
+
+\f3\fs26 \cf0 url: "/swagger/v1/swagger.json"\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\fs24 \cf0 they expose:\
+\pard\pardeftab720\partightenfactor0
+
+\f3\fs26 \cf0 configUrl: "/swagger-config"\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\fs24 \cf0 The engine recognizes this pattern and downloads the configuration endpoint.\
+The configuration response typically contains the actual specification URL.\
+The parser extracts the referenced specification and schedules it for download.\
+This additional step allows the engine to discover specifications that cannot be found through normal URL extraction.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa321\partightenfactor0
+
+\f2\b\fs48 \cf0 \strokec2 Phase 6 \'96 Direct Specification Enumeration\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b0\fs24 \cf0 If no Swagger UI is discovered, the engine attempts direct enumeration.\
+This phase is based on the observation that many production applications expose their specification without providing a documentation interface.\
+A large collection of well-known specification paths is maintained internally.\
+Examples include:\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sa240\partightenfactor0
+\ls6\ilvl0
+\f3\fs26 \cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /swagger.json
+\f0\fs24 \
+\ls6\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /swagger.yaml
+\f0\fs24 \
+\ls6\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /openapi.json
+\f0\fs24 \
+\ls6\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /openapi.yaml
+\f0\fs24 \
+\ls6\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /v1/swagger.json
+\f0\fs24 \
+\ls6\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /v2/swagger.json
+\f0\fs24 \
+\ls6\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /v3/swagger.json
+\f0\fs24 \
+\ls6\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /docs/swagger.json
+\f0\fs24 \
+\ls6\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /api/swagger.json
+\f0\fs24 \
+\ls6\ilvl0
+\f3\fs26 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 /swagger/v1/swagger.json
+\f0\fs24 \
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 Each path is requested individually.\
+The response is immediately validated.\
+Only responses satisfying all validation checks are accepted.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa321\partightenfactor0
+
+\f2\b\fs48 \cf0 \strokec2 Phase 7 \'96 Specification Validation\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b0\fs24 \cf0 Every downloaded document is treated as untrusted until it passes validation.\
+The validation process ensures that unrelated JSON files are not incorrectly identified as API specifications.\
+The engine verifies:\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sa240\partightenfactor0
+\ls7\ilvl0\cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 The HTTP response status is 200.\
+\ls7\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 The Content-Type indicates JSON, YAML, or plain text.\
+\ls7\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 The document can be successfully parsed.\
+\ls7\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 The root object contains either the 
+\f3\fs26 swagger
+\f0\fs24  field or the 
+\f3\fs26 openapi
+\f0\fs24  field.\
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 Documents failing any validation step are discarded.\
+This prevents false positives while keeping the parser resilient against incorrectly configured web servers.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa321\partightenfactor0
+
+\f2\b\fs48 \cf0 \strokec2 Phase 8 \'96 Specification Parsing\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b0\fs24 \cf0 After validation, the specification is converted into an internal Python dictionary.\
+JSON specifications are parsed using the standard JSON parser.\
+YAML specifications are parsed using a safe YAML parser.\
+From this point onward, both Swagger 2.0 and OpenAPI 3.x are treated identically by the remainder of the engine.\
+The parser extracts key sections including:\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sa240\partightenfactor0
+\ls8\ilvl0\cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 API metadata\
+\ls8\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Server definitions\
+\ls8\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Available paths\
+\ls8\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 HTTP methods\
+\ls8\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Parameters\
+\ls8\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Request body schemas\
+\ls8\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Response definitions\
+\ls8\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Security schemes\
+\ls8\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Authentication requirements\
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 The extracted information is normalized into a common internal representation so that later stages do not need to distinguish between Swagger versions.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa321\partightenfactor0
+
+\f2\b\fs48 \cf0 \strokec2 Phase 9 \'96 Endpoint Extraction\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b0\fs24 \cf0 The parser iterates through every path defined inside the specification.\
+For every HTTP method associated with that path, a new endpoint object is created.\
+Each endpoint contains:\
+\pard\tx220\tx720\pardeftab720\li720\fi-720\sa240\partightenfactor0
+\ls9\ilvl0\cf0 \kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Absolute URL\
+\ls9\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 HTTP method\
+\ls9\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Path parameters\
+\ls9\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Query parameters\
+\ls9\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Header parameters\
+\ls9\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Cookie parameters\
+\ls9\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Request body schema\
+\ls9\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Expected responses\
+\ls9\ilvl0\kerning1\expnd0\expndtw0 \outl0\strokewidth0 {\listtext	\uc0\u8226 	}\expnd0\expndtw0\kerning0
+\outl0\strokewidth0 \strokec2 Authentication requirements\
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 This normalized endpoint model becomes the foundation for all subsequent security testing and API reconnaissance.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa321\partightenfactor0
+
+\f2\b\fs48 \cf0 \strokec2 Phase 10 \'96 Authentication Analysis\
+\pard\pardeftab720\sa240\partightenfactor0
+
+\f0\b0\fs24 \cf0 The engine inspects the specification for authentication mechanisms.\
+Depending on the OpenAPI version, authentication information is extracted from either 
+\f3\fs26 securityDefinitions
+\f0\fs24  (Swagger 2.0) or 
+\f3\fs26 components.securitySchemes
+\f0\fs24  (OpenAPI 3.x).\
+Supported authentication types include Bearer tokens, API keys, Basic Authentication, Cookie Authentication, and OAuth2.\
+Rather than authenticating automatically, the engine records the expected authentication requirements for each endpoint. This information is later used by the security testing engine to compare expected behaviour against actual responses, enabling the detection of broken authentication or authorization issues.\
+\pard\pardeftab720\partightenfactor0
+\cf3 \strokec3 \
+\pard\pardeftab720\sa240\partightenfactor0
+\cf0 \strokec2 This style of documentation explains the 
+\f2\b intent, internal logic, implementation decisions, validation criteria, and engineering rationale
+\f0\b0  behind each phase, making it suitable as a developer design document rather than just an operational overview.\
+}

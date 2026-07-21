@@ -1,0 +1,12 @@
+Restler Information: 0 : Starting task Compile...
+    DateTime=2026-07-15T16:32:25.8351710Z
+Restler Information: 0 : Launching 'dotnet "/Users/apple/restler_bin/restler/../compiler/Restler.CompilerExe.dll" "/Users/apple/Documents/APIHarvester/scratch/Compile/config.json"'
+    DateTime=2026-07-15T16:32:27.0539000Z
+Restler Information: 0 : Process execution terminated in 00:00:00.4276236 with exit code 0x0: 'dotnet "/Users/apple/restler_bin/restler/../compiler/Restler.CompilerExe.dll" "/Users/apple/Documents/APIHarvester/scratch/Compile/config.json"'
+    DateTime=2026-07-15T16:32:27.4836110Z
+Restler Information: 0 : (13297) dotnet "/Users/apple/restler_bin/restler/../compiler/Restler.CompilerExe.dll" "/Users/apple/Documents/APIHarvester/scratch/Compile/config.json" exited with code: 0
+    DateTime=2026-07-15T16:32:27.4860870Z
+Restler Information: 0 : Task Compile succeeded.
+    DateTime=2026-07-15T16:32:27.4956940Z
+Restler Information: 0 : Collecting logs...
+    DateTime=2026-07-15T16:32:27.9371990Z

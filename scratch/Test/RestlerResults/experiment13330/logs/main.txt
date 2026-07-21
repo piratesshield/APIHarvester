@@ -1,0 +1,58 @@
+Random seed: 12345
+Setting fuzzing schemes: directed-smoke-test
+2026-07-15 22:02:38.660: Going to fuzz a set with 1 requests
+2026-07-15 22:02:38.660: Request-0: Value Combinations: 2
+2026-07-15 22:02:38.660: Avg. Value Combinations per Request: 2
+2026-07-15 22:02:38.660: Median Value Combinations per Request: 2
+2026-07-15 22:02:38.660: Min Value Combinations per Request: 2
+2026-07-15 22:02:38.660: Max Value Combinations per Request: 2
+2026-07-15 22:02:38.660: Total dependencies: 0
+
+2026-07-15 22:02:38.660: Generation: 1 / Sequences Collection Size: 1 
+(After directed-smoke-test Extend)
+
+Rendering request 0 from scratch
+
+2026-07-15 22:02:38.674: Request 0
+2026-07-15 22:02:38.674: Endpoint - /api/v1/health
+2026-07-15 22:02:38.674: Hex Def - 697b7ba1aaa671ad4dd0cd2b2a02d93e26fe5909
+2026-07-15 22:02:38.674: Sequence length that satisfies dependencies: 1
+2026-07-15 22:02:38.674: Rendering INVALID
+		- restler_static_string: 'GET '
+		- restler_static_string: ''
+		- restler_static_string: '/'
+		- restler_static_string: 'api'
+		- restler_static_string: '/'
+		- restler_static_string: 'v1'
+		- restler_static_string: '/'
+		- restler_static_string: 'health'
+		- restler_static_string: ' HTTP/1.1\r\n'
+		- restler_static_string: 'Accept: application/json\r\n'
+		- restler_static_string: 'Host: \r\n'
+		+ restler_refreshable_authentication_token: ['token_auth_method', 'token_refresh_interval']
+		- restler_static_string: '\r\n'
+
+2026-07-15 22:02:38.674: Generation: 1 / Sequences Collection Size: 0 
+(After directed-smoke-test Render)
+
+2026-07-15 22:02:38.674: Final Swagger spec coverage: 0 / 1
+2026-07-15 22:02:38.674: Rendered requests: 0 / 1
+2026-07-15 22:02:38.674: Rendered requests with "valid" status codes: 0 / 0
+2026-07-15 22:02:38.674: Num fully valid requests (no resource creation failures): 0
+2026-07-15 22:02:38.674: Num requests not rendered due to invalid sequence re-renders: 0
+2026-07-15 22:02:38.674: Num invalid requests caused by failed resource creations: 0
+2026-07-15 22:02:38.674: Total Creations of Dyn Objects: 0
+2026-07-15 22:02:38.674: Total Requests Sent: {'gc': 0, 'main_driver': 0}
+2026-07-15 22:02:38.674: Bug Buckets: {}
+
+Testing completed -- below are the final stats:
+
+2026-07-15 22:02:38.675: Final Swagger spec coverage: 0 / 1
+2026-07-15 22:02:38.675: Rendered requests: 0 / 1
+2026-07-15 22:02:38.675: Rendered requests with "valid" status codes: 0 / 0
+2026-07-15 22:02:38.675: Num fully valid requests (no resource creation failures): 0
+2026-07-15 22:02:38.675: Num requests not rendered due to invalid sequence re-renders: 0
+2026-07-15 22:02:38.675: Num invalid requests caused by failed resource creations: 0
+2026-07-15 22:02:38.675: Total Creations of Dyn Objects: 0
+2026-07-15 22:02:38.675: Total Requests Sent: {'gc': 0, 'main_driver': 0}
+2026-07-15 22:02:38.675: Bug Buckets: {}

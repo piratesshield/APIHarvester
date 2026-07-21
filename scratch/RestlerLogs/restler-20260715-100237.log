@@ -1,0 +1,34 @@
+Restler Information: 0 : Starting task Test...
+    DateTime=2026-07-15T16:32:37.4374820Z
+Restler Information: 0 : Launching 'python3 --version'
+    DateTime=2026-07-15T16:32:38.3598200Z
+Restler Information: 0 : Launching 'python --version'
+    DateTime=2026-07-15T16:32:38.3598640Z
+Restler Information: 0 : Process execution terminated in 00:00:00.0379575 with exit code 0x0: 'python3 --version'
+    DateTime=2026-07-15T16:32:38.4091820Z
+Restler Information: 0 : (13329) python3 --version exited with code: 0
+    DateTime=2026-07-15T16:32:38.4125170Z
+Restler Information: 0 : Launching 'python3 -B "/Users/apple/restler_bin/restler/../engine/restler.py" --restler_grammar "/Users/apple/Documents/APIHarvester/scratch/Compile/grammar.py" --custom_mutations "/Users/apple/Documents/APIHarvester/scratch/Compile/dict.json" --set_version 9.3.1       --settings "/Users/apple/Documents/APIHarvester/scratch/Compile/engine_settings.json"     --include_user_agent --no_tokens_in_logs t --garbage_collection_interval 30 --fuzzing_mode directed-smoke-test'
+    DateTime=2026-07-15T16:32:38.4193490Z
+Restler Information: 0 : Process execution terminated in 00:00:00.2705826 with exit code 0x0: 'python3 -B "/Users/apple/restler_bin/restler/../engine/restler.py" --restler_grammar "/Users/apple/Documents/APIHarvester/scratch/Compile/grammar.py" --custom_mutations "/Users/apple/Documents/APIHarvester/scratch/Compile/dict.json" --set_version 9.3.1       --settings "/Users/apple/Documents/APIHarvester/scratch/Compile/engine_settings.json"     --include_user_agent --no_tokens_in_logs t --garbage_collection_interval 30 --fuzzing_mode directed-smoke-test'
+    DateTime=2026-07-15T16:32:38.6900150Z
+Restler Information: 0 : (13330) python3 -B "/Users/apple/restler_bin/restler/../engine/restler.py" --restler_grammar "/Users/apple/Documents/APIHarvester/scratch/Compile/grammar.py" --custom_mutations "/Users/apple/Documents/APIHarvester/scratch/Compile/dict.json" --set_version 9.3.1       --settings "/Users/apple/Documents/APIHarvester/scratch/Compile/engine_settings.json"     --include_user_agent --no_tokens_in_logs t --garbage_collection_interval 30 --fuzzing_mode directed-smoke-test exited with code: 0
+    DateTime=2026-07-15T16:32:38.6900460Z
+Restler Information: 0 : Launching 'dotnet "/Users/apple/restler_bin/restler/../resultsAnalyzer/Restler.ResultsAnalyzer.dll" analyze "/Users/apple/Documents/APIHarvester/scratch/Test" --output_dir "/Users/apple/Documents/APIHarvester/scratch/Test/ResponseBuckets" --dictionary_file "/Users/apple/Documents/APIHarvester/scratch/Compile/dict.json" --max_instances_per_bucket 10'
+    DateTime=2026-07-15T16:32:38.7082570Z
+Restler Information: 0 : Process execution terminated in 00:00:00.2322311 with exit code 0x0: 'dotnet "/Users/apple/restler_bin/restler/../resultsAnalyzer/Restler.ResultsAnalyzer.dll" analyze "/Users/apple/Documents/APIHarvester/scratch/Test" --output_dir "/Users/apple/Documents/APIHarvester/scratch/Test/ResponseBuckets" --dictionary_file "/Users/apple/Documents/APIHarvester/scratch/Compile/dict.json" --max_instances_per_bucket 10'
+    DateTime=2026-07-15T16:32:38.9405680Z
+Restler Information: 0 : (13332) dotnet "/Users/apple/restler_bin/restler/../resultsAnalyzer/Restler.ResultsAnalyzer.dll" analyze "/Users/apple/Documents/APIHarvester/scratch/Test" --output_dir "/Users/apple/Documents/APIHarvester/scratch/Test/ResponseBuckets" --dictionary_file "/Users/apple/Documents/APIHarvester/scratch/Compile/dict.json" --max_instances_per_bucket 10 exited with code: 0
+    DateTime=2026-07-15T16:32:38.9406330Z
+Restler Information: 0 : Request coverage (successful / total): 0 / 1
+    DateTime=2026-07-15T16:32:38.9917680Z
+Restler Information: 0 : Attempted requests: 0 / 1
+    DateTime=2026-07-15T16:32:38.9917810Z
+Restler Information: 0 : No bugs were found.
+    DateTime=2026-07-15T16:32:38.9926320Z
+Restler Information: 0 : See 'coverage_failures_to_investigate.txt' to investigate API coverage.
+    DateTime=2026-07-15T16:32:39.0240600Z
+Restler Information: 0 : Task Test succeeded.
+    DateTime=2026-07-15T16:32:39.0252110Z
+Restler Information: 0 : Collecting logs...
+    DateTime=2026-07-15T16:32:39.4295790Z

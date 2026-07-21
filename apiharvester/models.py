@@ -20,6 +20,8 @@ class Response:
     body: str = ""
     error: str = ""
     elapsed_ms: int = 0
+    bypassed: bool = False        # set when a WAF-bypass variant succeeded
+    bypass_technique: str = ""    # which UA/header combo got through
 
 
 @dataclass
@@ -134,8 +136,10 @@ class ScanContext:
     endpoints: List[Endpoint] = field(default_factory=list)
     findings: Dict[str, Finding] = field(default_factory=dict)
     swagger_specs: Dict[str, dict] = field(default_factory=dict)
+    swagger_analysis: Dict[str, dict] = field(default_factory=dict)  # domain → {security_schemes, enums, schemas, ...}
     waf_hosts: Set[str] = field(default_factory=set)
     tokens: List[str] = field(default_factory=list)
+    api_profiles: Dict[str, dict] = field(default_factory=dict)  # base_url → APIProfile.to_dict()
 
     def add_finding(self, f: Finding):
         self.findings.setdefault(f.key(), f)

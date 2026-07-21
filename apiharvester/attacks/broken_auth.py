@@ -6,7 +6,9 @@ from ..http_client import HTTPClient
 from ..models import Finding, ScanContext
 from ..utils.jwt import (jwt_parts, jwt_crack_weak_secret,
                          jwt_forge_alg_none, jwt_tamper_claims,
+                         jwt_forge_alg_confusion, jwks_to_pem,
                          extract_jwt_from_auth)
+from ..utils.validation import is_auth_enforced
 
 
 def _log(msg):
@@ -15,8 +17,10 @@ def _log(msg):
 
 def _test_no_auth(client, ep, ctx):
     """Test if endpoint is accessible without any auth token."""
+    from ..utils.validation import looks_like_error_or_empty
     resp = client.request("GET", ep.url)
-    if 200 <= resp.status < 300 and resp.length > 50:
+    if 200 <= resp.status < 300 and resp.length > 50 and \
+            not looks_like_error_or_empty(resp):
         ctx.add_finding(Finding(
             title="No authentication required on protected endpoint",
             severity="high",
@@ -71,11 +75,78 @@ def _test_method_bypass(client, ep, ctx):
     return found
 
 
+def _fetch_public_key_pem(client, ep):
+    """Best-effort fetch of the signing public key from common JWKS locations.
+
+    Needed for the RS256->HS256 algorithm-confusion attack. Returns a PEM
+    string or None. Dependency-free RSA JWK->PEM conversion.
+    """
+    import json as _json
+    from urllib.parse import urlparse
+    base = f"{urlparse(ep.url).scheme}://{ep.host}"
+    paths = [
+        "/.well-known/jwks.json",
+        "/.well-known/openid-configuration/jwks",
+        "/jwks.json", "/jwks", "/oauth/jwks", "/api/jwks.json",
+        "/.well-known/openid-configuration",
+    ]
+    for p in paths:
+        r = client.request("GET", base + p)
+        if r.status != 200 or not r.body:
+            continue
+        try:
+            doc = _json.loads(r.body)
+        except ValueError:
+            continue
+        # openid-configuration -> follow jwks_uri once
+        if isinstance(doc, dict) and "jwks_uri" in doc and "keys" not in doc:
+            r2 = client.request("GET", doc["jwks_uri"])
+            try:
+                doc = _json.loads(r2.body)
+            except (ValueError, AttributeError):
+                continue
+        keys = doc.get("keys", []) if isinstance(doc, dict) else []
+        for jwk in keys:
+            pem = jwks_to_pem(jwk)
+            if pem:
+                return pem
+    return None
+
+
 def _test_jwt_attacks(client, token, ep, ctx):
-    """Run JWT-specific attacks against a token."""
+    """Run JWT-specific attacks against a token.
+
+    VALIDATION GATE (REAL_WORLD_RESEARCH.md §8): network-based bypass claims
+    (alg=none, claim tampering, kid injection, algorithm confusion) are only
+    meaningful if the endpoint actually ENFORCES auth. We first confirm a
+    garbage token is rejected. If garbage is accepted, the endpoint is simply
+    unauthenticated — we report that once and skip the (false-positive) bypass
+    assertions.
+    """
     found = 0
 
-    # 1. Weak secret cracking
+    enforced = is_auth_enforced(client, ep.url)
+    if not enforced:
+        # A garbage token got in — every "forged token accepted" would be a
+        # false positive. Report the real issue instead.
+        ctx.add_finding(Finding(
+            title="Endpoint accepts an invalid JWT (auth not enforced)",
+            severity="high",
+            category="API2:2023 Broken Authentication",
+            method="GET",
+            path=ep.path,
+            host=ep.host,
+            status=0,
+            evidence="A syntactically-valid but bogus-signature control token "
+                     "was accepted (2xx). Signature verification is not "
+                     "enforced; JWT 'bypass' sub-tests are skipped to avoid "
+                     "false positives.",
+            remediation="Verify the JWT signature on every request and reject "
+                        "tokens that fail verification.",
+            attack_phase="broken_auth"))
+        found += 1
+
+    # 1. Weak secret cracking (offline — always valid regardless of enforcement)
     secret = jwt_crack_weak_secret(token)
     if secret is not None:
         ctx.add_finding(Finding(
@@ -91,6 +162,11 @@ def _test_jwt_attacks(client, token, ep, ctx):
                         "Consider asymmetric signing (RS256).",
             attack_phase="broken_auth"))
         found += 1
+
+    # The following tests assert a *bypass*; only meaningful if auth is
+    # enforced (a garbage token is rejected). Skip otherwise — already reported.
+    if not enforced:
+        return found
 
     # 2. alg=none bypass
     forged = jwt_forge_alg_none(token)
@@ -132,6 +208,35 @@ def _test_jwt_attacks(client, token, ep, ctx):
                             "Never trust client-supplied claims.",
                 attack_phase="broken_auth"))
             found += 1
+
+    # 3b. RS256 -> HS256 algorithm confusion (REAL_WORLD_RESEARCH.md §8).
+    # Only applicable when the real token uses an asymmetric algorithm.
+    parsed_ac = jwt_parts(token)
+    if parsed_ac and parsed_ac[0].get("alg", "").upper().startswith(("RS", "ES", "PS")):
+        pub_pem = _fetch_public_key_pem(client, ep)
+        if pub_pem:
+            confused = jwt_forge_alg_confusion(
+                token, pub_pem, {"role": "admin", "is_admin": True})
+            if confused:
+                headers = {"Authorization": f"Bearer {confused}"}
+                resp = client.request("GET", ep.url, headers=headers)
+                if 200 <= resp.status < 300:
+                    ctx.add_finding(Finding(
+                        title="JWT algorithm confusion (RS256→HS256) accepted",
+                        severity="critical",
+                        category="API2:2023 Broken Authentication",
+                        method="GET",
+                        path=ep.path,
+                        host=ep.host,
+                        status=resp.status,
+                        evidence="Token re-signed HS256 using the server's RSA "
+                                 "public key (from JWKS) as the HMAC secret was "
+                                 f"accepted ({resp.status}); role=admin injected.",
+                        remediation="Pin the expected algorithm server-side; never "
+                                    "let the token header choose the verification "
+                                    "algorithm. Use separate key types per alg.",
+                        attack_phase="broken_auth"))
+                    found += 1
 
     # 4. kid injection (path traversal)
     parsed = jwt_parts(token)

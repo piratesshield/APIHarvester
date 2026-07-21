@@ -7,6 +7,7 @@ from ..config import SPEC_PATHS
 from ..http_client import HTTPClient
 from ..models import Endpoint, ScanContext
 from ..utils.soft404 import Soft404Detector
+from .swagger_parser import analyze_spec
 
 
 def _log(msg):
@@ -131,7 +132,21 @@ def find_swagger_specs(ctx: ScanContext):
             found_specs += 1
 
             try:
-                ctx.swagger_specs[host.domain] = json.loads(resp.body)
+                spec_dict = json.loads(resp.body)
+                ctx.swagger_specs[host.domain] = spec_dict
+
+                # Advanced analysis: extract security schemes, enums, schemas, constraints
+                analysis = analyze_spec(spec_dict)
+                ctx.swagger_analysis[host.domain] = analysis
+
+                # Log what we found
+                if analysis.get("security_schemes"):
+                    _log(f"    Auth: {', '.join(analysis['security_schemes'].keys())}")
+                if analysis.get("parameter_enums"):
+                    _log(f"    Enums: {len(analysis['parameter_enums'])} param(s) with enum values")
+                if analysis.get("request_body_schemas"):
+                    _log(f"    Request bodies: {len(analysis['request_body_schemas'])} endpoint(s)")
+
             except json.JSONDecodeError:
                 continue
 

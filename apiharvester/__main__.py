@@ -1,4 +1,4 @@
-"""CLI entry point — python -m apiharvester anan.com"""
+"""CLI entry point — python -m apiharvester example.com"""
 import argparse
 import os
 import sys
@@ -44,8 +44,8 @@ BANNER = f"""
    _   ___ ___ _  _   _   _____   _____ ___ _____ ___ ___
   /_\\\\ | _ \\\\_ _| || | /_\\\\ | _ \\\\ \\\\ / / __/ __|_   _| __| _ \\\\
  / _ \\\\|  _/| || __ |/ _ \\\\|   /\\\\ V /| _|\\\\__ \\\\ | | | _||   /
-/_/ \\\\_\\\\_| |___|_||_/_/ \\\\_\\\\_|_\\\\ \\\\_/ |___|___/ |_| |___|_|_\\\\  v{VERSION}
-     API Security Scanner — OWASP Top 10
+/_/ \\\\_\\\\_| |___|_||_/_/ \\\\_\\\\_|_\\\\ \\\\_/ |___|___/ |_| |___|_|_\\\\
+     API Harvester 2.0  —  OWASP API Top 10 Security Scanner  v{VERSION}
 """
 
 ALL_ATTACKS = {
@@ -68,7 +68,7 @@ ALL_ATTACKS = {
 def build_parser():
     p = argparse.ArgumentParser(
         prog="apiharvester",
-        description="API Security Scanner — OWASP Top 10 attack automation",
+        description="API Harvester 2.0 — OWASP API Top 10 attack automation",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="Example:\n"
                "  python -m apiharvester example.com\n"
@@ -95,13 +95,17 @@ def build_parser():
                    help="HTTP timeout in seconds (default: 10)")
     p.add_argument("--burst", type=int, default=20,
                    help="Burst request count for rate-limit tests (default: 20)")
+    p.add_argument("--waf-bypass", action="store_true",
+                   help="OPTIONAL: rotate browser User-Agents and retry "
+                        "WAF-blocked requests with UA/header spoofing variants "
+                        "(off by default; use only for authorized testing)")
     p.add_argument("--json", dest="json_out", metavar="FILE",
                    help="Write JSONL report to FILE")
     p.add_argument("--html", dest="html_out", metavar="FILE",
                    help="Write HTML report to FILE")
     p.add_argument("--output-dir", dest="output_dir",
                    help="Scan output directory (default: ./output/{domain})")
-    p.add_argument("--version", action="version", version=f"apiharvester {VERSION}")
+    p.add_argument("--version", action="version", version=f"apiharvester {VERSION} (API Harvester 2.0)")
     return p
 
 
@@ -122,11 +126,51 @@ def _phase(label, fn, *args):
     print(f"[*] {label} completed in {elapsed:.1f}s", file=sys.stderr)
 
 
+def _profile_apis(ctx):
+    """Profile discovered API hosts to understand their capabilities."""
+    from .recon.api_profiler import profile_api
+
+    if not ctx.api_hosts():
+        print("[*] No API hosts to profile", file=sys.stderr)
+        return
+
+    for host in ctx.api_hosts():
+        try:
+            profile = profile_api(ctx, host.url, timeout=ctx.timeout)
+            ctx.api_profiles[host.url] = profile.to_dict()
+            print(f"[+] Profiled {host.domain}: {profile.api_type}, "
+                  f"WAF={profile.waf_vendor or 'none'}, "
+                  f"auth={profile.auth_schemes[0] if profile.auth_schemes else 'none'}",
+                  file=sys.stderr)
+        except Exception as e:
+            print(f"[-] Failed to profile {host.domain}: {e}", file=sys.stderr)
+
+
+def _extract_path_params(ctx):
+    """Extract path parameters from endpoint URLs (Phase 7b)."""
+    from .recon.param_extraction import extract_endpoint_params
+    extract_endpoint_params(ctx)
+
+
+def _extract_tokens(ctx):
+    """Extract authentication tokens from auth endpoints (Phase 7c)."""
+    from .recon.token_extraction import extract_tokens_from_auth_endpoints
+    extract_tokens_from_auth_endpoints(ctx)
+
+
 def main():
     parser = build_parser()
     args = parser.parse_args()
 
     print(BANNER, file=sys.stderr)
+
+    # Optional WAF/User-Agent bypass — global opt-in, off by default.
+    if args.waf_bypass:
+        from .http_client import HTTPClient
+        HTTPClient.enable_waf_bypass()
+        print("[*] WAF bypass ENABLED: rotating browser User-Agents + "
+              "block-retry with header spoofing (authorized testing only)",
+              file=sys.stderr)
 
     # Build output directory
     if args.output_dir:
@@ -171,8 +215,11 @@ def main():
         _phase("Phase 3:  HTTP Probing", probe_hosts, ctx)
         _phase("Phase 4:  WAF Detection", detect_waf, ctx)
         _phase("Phase 5:  API URL Detection", detect_api_urls, ctx)
+        _phase("Phase 5b: API Capability Profiling", _profile_apis, ctx)
         _phase("Phase 6:  Swagger/OpenAPI Discovery", find_swagger_specs, ctx)
         _phase("Phase 7:  Endpoint Brute-Force", discover_endpoints, ctx)
+        _phase("Phase 7b: Path Parameter Extraction", _extract_path_params, ctx)
+        _phase("Phase 7c: Token Extraction from Auth Endpoints", _extract_tokens, ctx)
         _phase("Phase 8:  Parameter Discovery", discover_params, ctx)
         _phase("Phase 9:  Crawling + JS Extraction", crawl_and_extract, ctx)
         _phase("Phase 10: HTTP Method Probing", probe_methods, ctx)

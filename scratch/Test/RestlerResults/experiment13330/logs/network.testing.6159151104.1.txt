@@ -1,0 +1,48 @@
+
+Generation-1: Rendering Sequence-1
+
+	Request: 1 (Remaining candidate combinations: 2)
+	Request hash: 697b7ba1aaa671ad4dd0cd2b2a02d93e26fe5909
+
+		- restler_static_string: 'GET '
+		- restler_static_string: ''
+		- restler_static_string: '/'
+		- restler_static_string: 'api'
+		- restler_static_string: '/'
+		- restler_static_string: 'v1'
+		- restler_static_string: '/'
+		- restler_static_string: 'health'
+		- restler_static_string: ' HTTP/1.1\r\n'
+		- restler_static_string: 'Accept: application/json\r\n'
+		- restler_static_string: 'Host: \r\n'
+		+ restler_refreshable_authentication_token: [token_auth_method, token_refresh_interval, ...]
+		- restler_static_string: '\r\n'
+
+2026-07-15 22:02:38.668: Unknown error: 'Exception Creating Socket: [Errno 61] Connection refused'
+2026-07-15 22:02:38.669: Re-creating connection and re-trying.
+2026-07-15 22:02:38.669: Unknown error: 'Exception Creating Socket: [Errno 61] Connection refused'
+2026-07-15 22:02:38.669: Failed to receive response.  Success: False, status: Creating, Response: Exception Creating Socket: [Errno 61] Connection refused
+
+Generation-1: Rendering Sequence-1
+
+	Request: 1 (Remaining candidate combinations: 1)
+	Request hash: 697b7ba1aaa671ad4dd0cd2b2a02d93e26fe5909
+
+		- restler_static_string: 'GET '
+		- restler_static_string: ''
+		- restler_static_string: '/'
+		- restler_static_string: 'api'
+		- restler_static_string: '/'
+		- restler_static_string: 'v1'
+		- restler_static_string: '/'
+		- restler_static_string: 'health'
+		- restler_static_string: ' HTTP/1.1\r\n'
+		- restler_static_string: 'Accept: application/json\r\n'
+		- restler_static_string: 'Host: \r\n'
+		+ restler_refreshable_authentication_token: [token_auth_method, token_refresh_interval, ...]
+		- restler_static_string: '\r\n'
+
+2026-07-15 22:02:38.673: Unknown error: 'Exception Creating Socket: [Errno 61] Connection refused'
+2026-07-15 22:02:38.673: Re-creating connection and re-trying.
+2026-07-15 22:02:38.673: Unknown error: 'Exception Creating Socket: [Errno 61] Connection refused'
+2026-07-15 22:02:38.673: Failed to receive response.  Success: False, status: Creating, Response: Exception Creating Socket: [Errno 61] Connection refused

@@ -1,0 +1,18 @@
+{
+    "final_spec_coverage": "0 / 1",
+    "rendered_requests": "0 / 1",
+    "rendered_requests_valid_status": "0 / 0",
+    "num_fully_valid": 0,
+    "num_sequence_failures": 0,
+    "num_invalid_by_failed_resource_creations": 0,
+    "total_object_creations": 0,
+    "total_requests_sent": {
+        "gc": 0,
+        "main_driver": 0
+    },
+    "bug_buckets": {},
+    "reproducible_bug_buckets": {},
+    "settings": {
+        "random_seed": 12345
+    }
+}

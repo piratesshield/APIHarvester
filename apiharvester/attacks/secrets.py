@@ -5,6 +5,7 @@ import sys
 
 from ..http_client import HTTPClient
 from ..models import Finding, ScanContext
+from ..utils.validation import looks_like_real_secret
 
 
 def _log(msg):
@@ -46,10 +47,23 @@ def run_secrets(ctx: ScanContext):
         if not resp.body or resp.status == 0:
             continue
 
+        # Skip echoing the caller's own bearer token back as a "leak".
+        own_token = (ctx.auth or "").split()[-1] if ctx.auth else None
+
         for pattern_name, pattern in SECRET_PATTERNS:
             match = pattern.search(resp.body)
             if match:
                 secret = match.group(0)
+
+                # VALIDATION: drop docs placeholders / low-entropy noise, and
+                # never flag the caller's own auth token reflected back.
+                candidate = match.group(len(match.groups())) if match.groups() \
+                    else secret
+                if own_token and own_token in secret:
+                    continue
+                if not looks_like_real_secret(candidate):
+                    continue
+
                 # Redact for display (show first 12 chars + ellipsis)
                 redacted = secret[:12] + "…" if len(secret) > 12 else secret
 

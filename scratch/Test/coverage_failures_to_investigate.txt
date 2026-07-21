@@ -1,0 +1,26 @@
+This file contains the failing requests, ordered by the number of blocked dependent requests.
+To improve coverage, fix the failing requests in the order listed in this file.
+
+Note: some requests are labeled as 'sequence failure'.
+This means the request depends on another request that is failing intermittently.
+For example, a DELETE request for a resource may be skipped because the resource
+PUT request failed due to exceeding quota.  The same PUT request succeeded earlier (and may
+succeed later depending on the resource clean-up behavior in the service), so it is
+considered an intermittent failure.
+
+-----------------------------------------------
+Request: Get /api/v1/health
+Number of blocked dependent requests: 0
+
+	+++ Combination 1 +++:
+	Request sequence: 
+	> GET /api/v1/health HTTP/1.1\r\nAccept: application/json\r\nHost: \r\n\r\n
+	< 
+
+
+	+++ Combination 2 +++:
+	Request sequence: 
+	> GET /api/v1/health HTTP/1.1\r\nAccept: application/json\r\nHost: \r\n\r\n
+	< 
+
+

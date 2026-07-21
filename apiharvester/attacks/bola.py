@@ -17,6 +17,8 @@ import sys
 from ..config import ID_SEGMENT_RE
 from ..http_client import HTTPClient
 from ..models import Finding, ScanContext
+from ..utils.validation import (responses_equivalent, is_distinct_object,
+                                looks_like_error_or_empty)
 
 
 def _log(msg):
@@ -125,7 +127,7 @@ def run_bola(ctx: ScanContext):
         if not ep.is_auth_endpoint:
             ctx.add_finding(Finding(
                 title="Possible BOLA/IDOR: object-ID endpoint accessible",
-                severity="medium",
+                severity="low",
                 category="API1:2023 BOLA",
                 method="GET",
                 path=ep.path,
@@ -152,9 +154,9 @@ def run_bola(ctx: ScanContext):
                 resp2 = client.request("GET", alt_url, headers=headers)
 
                 if 200 <= resp2.status < 300:
-                    # Check if this is a different object or same soft-404
-                    reason = _response_info_disclosure(resp1, resp2)
-                    if reason:
+                    # VALIDATION: must be a genuinely different *valid* object,
+                    # not a soft-404, error shell, or the same catch-all body.
+                    if is_distinct_object(resp1, resp2):
                         ctx.add_finding(Finding(
                             title=f"BOLA: accessed different object with ID swap "
                                   f"({original_id}→{label}={alt_id})",
@@ -166,34 +168,66 @@ def run_bola(ctx: ScanContext):
                             status=resp2.status,
                             evidence=f"Original ID: {original_id}, "
                                      f"alternate ID: {alt_id} ({label}); "
-                                     f"reason: {reason}",
+                                     f"returned a distinct valid object "
+                                     f"({resp2.length}B) vs baseline "
+                                     f"({resp1.length}B)",
                             remediation="Enforce object-level authorization checks; "
                                         "verify the requesting user owns the resource.",
                             attack_phase="bola"))
                         found += 1
                         break  # one confirmed BOLA per endpoint is enough signal
 
-        # Differential auth test: same URL with two different tokens.
-        # If both get 200, cross-account access = confirmed IDOR.
+        # Differential auth test: same object URL requested by two identities.
+        #
+        # VALIDATION (fixes a classic false positive): two identities each
+        # getting a 200 is NOT a BOLA — user A reading A's own object and user
+        # B reading B's own object is correct behaviour. A real cross-account
+        # read requires that identity B receives the *same object* that belongs
+        # to identity A. We confirm by comparing the two response bodies: if
+        # they are equivalent (same object served to both tokens), the object
+        # is not access-controlled and B is reading A's data.
         if ctx.auth2:
             headers2 = {"Authorization": ctx.auth2}
             resp_low = client.request("GET", ep.url, headers=headers2)
-            if 200 <= resp_low.status < 300:
-                ctx.add_finding(Finding(
-                    title="BOLA: confirmed cross-account access (differential auth)",
-                    severity="critical",
-                    category="API1:2023 BOLA",
-                    method="GET",
-                    path=ep.path,
-                    host=ep.host,
-                    status=resp_low.status,
-                    evidence=f"Same URL returned {resp1.status} for --auth "
-                             f"(high-priv) and {resp_low.status} for --auth2 "
-                             f"(low-priv); if these are different identities, "
-                             f"this is a confirmed IDOR",
-                    remediation="Implement per-user/per-object authorization checks; "
-                                "verify caller owns the requested resource on every request.",
-                    attack_phase="bola"))
-                found += 1
+            if 200 <= resp_low.status < 300 and \
+                    not looks_like_error_or_empty(resp_low):
+                if responses_equivalent(resp1, resp_low):
+                    ctx.add_finding(Finding(
+                        title="BOLA: confirmed cross-account access "
+                              "(identical object served to two identities)",
+                        severity="critical",
+                        category="API1:2023 BOLA",
+                        method="GET",
+                        path=ep.path,
+                        host=ep.host,
+                        status=resp_low.status,
+                        evidence=f"Object at {ep.path} returned the SAME body to "
+                                 f"--auth and --auth2 (similarity ≥0.95, "
+                                 f"{resp1.length}B vs {resp_low.length}B). A "
+                                 f"per-object owner check would have denied one "
+                                 f"identity — confirmed IDOR.",
+                        remediation="Enforce per-object ownership checks on every "
+                                    "request; verify the caller owns the resource.",
+                        attack_phase="bola"))
+                    found += 1
+                else:
+                    # Both got 200 but different objects — the URL likely maps to
+                    # a per-caller resource (e.g. /me). Not a BOLA; note as info.
+                    ctx.add_finding(Finding(
+                        title="BOLA differential test: both identities got 200 "
+                              "but distinct objects (likely per-caller resource)",
+                        severity="info",
+                        category="API1:2023 BOLA",
+                        method="GET",
+                        path=ep.path,
+                        host=ep.host,
+                        status=resp_low.status,
+                        evidence=f"--auth and --auth2 both returned 200 but the "
+                                 f"bodies differ (similarity <0.95). This is "
+                                 f"expected for endpoints that resolve to the "
+                                 f"caller's own object; not treated as a finding.",
+                        remediation="No action if this is a per-caller endpoint. "
+                                    "Review if the URL targets a fixed object ID.",
+                        attack_phase="bola"))
 
     _log(f"BOLA findings: {found}")

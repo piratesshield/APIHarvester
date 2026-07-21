@@ -1,1 +1,52 @@
+# ─── Payloads (large binary / downloaded wordlists) ──────────────────────────
 payloads/kiterunner/routes-large.kite
+payloads/kiterunner/*.kite
+
+# ─── Scan Output ─────────────────────────────────────────────────────────────
+output/
+scratch/waf_debug.py.log
+/tmp/mock_*.log
+
+# ─── Python cache ─────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.cache/
+
+# ─── Compiled extensions ──────────────────────────────────────────────────────
+*.so
+*.pyd
+
+# ─── Virtual environments ─────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+.env
+
+# ─── OS / editor artifacts ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ─── Distribution / packaging ─────────────────────────────────────────────────
+dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
+
+# ─── Reports & findings (generated per-run) ───────────────────────────────────
+*.jsonl
+report.html
+findings.html
+
+# ─── Secrets / credentials (never commit) ────────────────────────────────────
+.env
+.env.*
+secrets.txt
+tokens.txt
